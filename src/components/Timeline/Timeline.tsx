@@ -3,6 +3,8 @@ import { useLayerStore, getLayerColor } from '../../stores/layerStore';
 import { useTimelineStore } from '../../stores/timelineStore';
 import { useProjectStore } from '../../stores/projectStore';
 import { useUIStore } from '../../stores/uiStore';
+import type { Keyframe } from '../../types/keyframe';
+import { EASING_PRESETS } from '../../types/keyframe';
 
 export function Timeline() {
   const layers = useLayerStore((s) => s.layers);
@@ -11,6 +13,8 @@ export function Timeline() {
   const toggleVisibility = useLayerStore((s) => s.toggleVisibility);
   const toggleLock = useLayerStore((s) => s.toggleLock);
   const addLayer = useLayerStore((s) => s.addLayer);
+  const addKeyframe = useLayerStore((s) => s.addKeyframe);
+  const removeKeyframe = useLayerStore((s) => s.removeKeyframe);
   const animations = useLayerStore((s) => s.animations);
 
   const expandedLayerIds = useUIStore((s) => s.expandedLayerIds);
@@ -42,6 +46,34 @@ export function Timeline() {
     origIn: number;
     origOut: number;
   } | null>(null);
+
+  // キーフレームドラッグ移動用
+  const [kfDrag, setKfDrag] = useState<{
+    layerId: string;
+    propName: string;
+    origTime: number;
+    startX: number;
+    kfData: Keyframe;
+  } | null>(null);
+
+  // 選択中のキーフレーム（複数選択対応）
+  type KfSelection = { layerId: string; propName: string; time: number };
+  const [selectedKfs, setSelectedKfs] = useState<KfSelection[]>([]);
+
+  const isKfSelected = (layerId: string, propName: string, time: number) =>
+    selectedKfs.some(s => s.layerId === layerId && s.propName === propName && s.time === time);
+
+  const toggleKfSelection = (kf: KfSelection, multi: boolean) => {
+    if (multi) {
+      setSelectedKfs(prev =>
+        prev.some(s => s.layerId === kf.layerId && s.propName === kf.propName && s.time === kf.time)
+          ? prev.filter(s => !(s.layerId === kf.layerId && s.propName === kf.propName && s.time === kf.time))
+          : [...prev, kf]
+      );
+    } else {
+      setSelectedKfs([kf]);
+    }
+  };
 
   // フレーム→ピクセル変換
   const frameToX = useCallback(
@@ -129,6 +161,80 @@ export function Timeline() {
     };
   }, [clipDrag, zoom]);
 
+  // キーフレームドラッグ移動（複数選択対応）
+  useEffect(() => {
+    if (!kfDrag) return;
+
+    const handleMove = (e: MouseEvent) => {
+      const dx = e.clientX - kfDrag.startX;
+      const frameDelta = Math.round(dx / zoom);
+      const newTime = Math.max(0, kfDrag.origTime + frameDelta);
+      const actualDelta = newTime - kfDrag.origTime;
+      if (actualDelta === (kfDrag.kfData.time - kfDrag.origTime)) return;
+
+      const store = useLayerStore.getState();
+
+      // 選択中の全KFを移動
+      const kfsToMove = selectedKfs.length > 0 ? selectedKfs : [{ layerId: kfDrag.layerId, propName: kfDrag.propName, time: kfDrag.origTime }];
+      const newSelections: typeof selectedKfs = [];
+
+      for (const sel of kfsToMove) {
+        // 現在の位置を見つける
+        const anim = store.animations[sel.layerId]?.[sel.propName];
+        const existingKf = anim?.keyframes.find(k => k.time === sel.time + actualDelta - (newTime - kfDrag.kfData.time !== 0 ? newTime - kfDrag.kfData.time : 0));
+        // シンプルに: 全部元の位置から再計算
+        const origKfTime = sel.time;
+        const currentKfTime = origKfTime + actualDelta;
+        const prevDelta = kfDrag.kfData.time - kfDrag.origTime;
+        const prevKfTime = origKfTime + prevDelta;
+
+        const kfInStore = anim?.keyframes.find(k => k.time === prevKfTime);
+        if (kfInStore) {
+          store.removeKeyframe(sel.layerId, sel.propName, prevKfTime);
+          store.addKeyframe(sel.layerId, sel.propName, { ...kfInStore, time: Math.max(0, currentKfTime) });
+        }
+        newSelections.push({ layerId: sel.layerId, propName: sel.propName, time: origKfTime });
+      }
+
+      setKfDrag(prev => prev ? { ...prev, kfData: { ...prev.kfData, time: newTime } } : null);
+      setCurrentFrame(newTime);
+    };
+
+    const handleUp = () => {
+      // ドラッグ終了時に選択を更新
+      if (kfDrag) {
+        const actualDelta = kfDrag.kfData.time - kfDrag.origTime;
+        setSelectedKfs(prev => prev.map(s => ({ ...s, time: s.time + actualDelta })));
+      }
+      setKfDrag(null);
+    };
+
+    window.addEventListener('mousemove', handleMove);
+    window.addEventListener('mouseup', handleUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMove);
+      window.removeEventListener('mouseup', handleUp);
+    };
+  }, [kfDrag, zoom, setCurrentFrame, selectedKfs]);
+
+  // 選択中KFのDelete削除（captureフェーズでレイヤー削除を防ぐ）
+  useEffect(() => {
+    if (selectedKfs.length === 0) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (e.code === 'Delete' || e.code === 'Backspace') {
+        e.preventDefault();
+        e.stopPropagation();
+        for (const sel of selectedKfs) {
+          removeKeyframe(sel.layerId, sel.propName, sel.time);
+        }
+        setSelectedKfs([]);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
+  }, [selectedKfs, removeKeyframe]);
+
   // ズーム（ホイール）
   const handleWheel = (e: React.WheelEvent) => {
     if (e.ctrlKey || e.metaKey) {
@@ -180,25 +286,48 @@ export function Timeline() {
     return ticks;
   };
 
-  // ドラッグ＆ドロップでレイヤー並べ替え
-  const handleLayerDragStart = (index: number) => {
-    setDragLayerIndex(index);
-  };
-  const handleLayerDragOver = (e: React.DragEvent, index: number) => {
+  // マウスベースのレイヤー並べ替え
+  const layersScrollRef = useRef<HTMLDivElement>(null);
+  const dragFromRef = useRef<number | null>(null);
+  const dragToRef = useRef<number | null>(null);
+
+  const handleLayerReorderStart = (e: React.MouseEvent, index: number) => {
+    e.stopPropagation();
     e.preventDefault();
-    setDragOverIndex(index);
-  };
-  const handleLayerDrop = (index: number) => {
-    if (dragLayerIndex !== null && dragLayerIndex !== index) {
-      useLayerStore.getState().saveSnapshot();
-      useLayerStore.getState().reorderLayer(dragLayerIndex, index);
-    }
-    setDragLayerIndex(null);
-    setDragOverIndex(null);
-  };
-  const handleLayerDragEnd = () => {
-    setDragLayerIndex(null);
-    setDragOverIndex(null);
+    setDragLayerIndex(index);
+    dragFromRef.current = index;
+    dragToRef.current = index;
+
+    const scrollEl = layersScrollRef.current;
+    if (!scrollEl) return;
+    const rows = scrollEl.querySelectorAll('.layer-row-wrap');
+    const rowHeight = (rows[0] as HTMLElement)?.offsetHeight || 28;
+    const scrollRect = scrollEl.getBoundingClientRect();
+
+    const onMove = (me: MouseEvent) => {
+      const relY = me.clientY - scrollRect.top + scrollEl.scrollTop;
+      const targetIdx = Math.max(0, Math.min(layers.length - 1, Math.floor(relY / rowHeight)));
+      dragToRef.current = targetIdx;
+      setDragOverIndex(targetIdx);
+    };
+
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      const from = dragFromRef.current;
+      const to = dragToRef.current;
+      if (from !== null && to !== null && from !== to) {
+        useLayerStore.getState().saveSnapshot();
+        useLayerStore.getState().reorderLayer(from, to);
+      }
+      setDragLayerIndex(null);
+      setDragOverIndex(null);
+      dragFromRef.current = null;
+      dragToRef.current = null;
+    };
+
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
   };
 
   // クリップのマウスダウン（移動 or トリム開始）
@@ -320,17 +449,13 @@ export function Timeline() {
               レイヤー ({layers.length})
             </span>
           </div>
-          <div className="timeline-layers-scroll">
+          <div className="timeline-layers-scroll" ref={layersScrollRef}>
             {layers.map((layer, idx) => (
             <React.Fragment key={layer.id}>
+              <div className="layer-row-wrap">
               <div
-                className={`layer-row${selectedLayerIds.includes(layer.id) ? ' selected' : ''}${dragOverIndex === idx ? ' drag-over' : ''}`}
+                className={`layer-row${selectedLayerIds.includes(layer.id) ? ' selected' : ''}${dragOverIndex === idx ? ' drag-over' : ''}${dragLayerIndex === idx ? ' dragging' : ''}`}
                 onClick={(e) => selectLayer(layer.id, e.ctrlKey || e.metaKey)}
-                draggable
-                onDragStart={() => handleLayerDragStart(idx)}
-                onDragOver={(e) => handleLayerDragOver(e, idx)}
-                onDrop={() => handleLayerDrop(idx)}
-                onDragEnd={handleLayerDragEnd}
               >
                 <div
                   className="layer-color-tag"
@@ -366,7 +491,11 @@ export function Timeline() {
                     </svg>
                   )}
                 </button>
-                <span className="layer-name">{layer.name}</span>
+                <span
+                  className="layer-name"
+                  onMouseDown={(e) => handleLayerReorderStart(e, idx)}
+                  style={{ cursor: 'grab' }}
+                >{layer.name}</span>
                 {/* 展開トグル */}
                 <button
                   className="layer-expand-btn"
@@ -383,15 +512,45 @@ export function Timeline() {
               {expandedLayerIds.includes(layer.id) && getDisplayProps(layer.id)
                 .map((propName) => {
                   const hasKf = (animations[layer.id]?.[propName]?.keyframes.length ?? 0) > 0;
+                  const hasKfAtCurrent = animations[layer.id]?.[propName]?.keyframes.some(kf => kf.time === currentFrame) || false;
                   return (
                     <div key={`${layer.id}-${propName}`} className="layer-prop-row">
                       <div className="layer-prop-indent" />
-                      <span className={`layer-prop-diamond${hasKf ? '' : ' no-kf'}`}>◆</span>
-                      <span className="layer-prop-name">{propLabel(propName)}</span>
+                      <button
+                        className={`layer-prop-stopwatch${hasKf ? ' active' : ''}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (hasKfAtCurrent) {
+                            // 現在フレームのKFを削除
+                            removeKeyframe(layer.id, propName, currentFrame);
+                          } else {
+                            // 現在フレームにKFを追加
+                            const transform = layer.transform;
+                            const val = transform[propName as keyof typeof transform];
+                            const kf: Keyframe = {
+                              time: currentFrame,
+                              value: Array.isArray(val) ? [...val] : val as number,
+                              interpolation: 'bezier',
+                              bezierPoints: EASING_PRESETS.easeInOut,
+                            };
+                            addKeyframe(layer.id, propName, kf);
+                          }
+                        }}
+                        title={hasKfAtCurrent ? 'キーフレーム削除' : 'キーフレーム追加'}
+                      >
+                        <svg viewBox="0 0 12 12" width="8" height="8">
+                          <rect x="3" y="3" width="6" height="6" transform="rotate(45 6 6)"
+                            fill={hasKfAtCurrent ? 'var(--color-keyframe)' : 'none'}
+                            stroke={hasKf ? 'var(--color-keyframe)' : 'currentColor'} strokeWidth="1.5"
+                          />
+                        </svg>
+                      </button>
+                      <span className={`layer-prop-name${hasKf ? ' animated' : ''}`}>{propLabel(propName)}</span>
                     </div>
                   );
                 })
               }
+              </div>
             </React.Fragment>
             ))}
             {layers.length === 0 && (
@@ -426,7 +585,6 @@ export function Timeline() {
             {layers.map((layer) => {
               const clipLeft = frameToX(layer.inPoint);
               const clipWidth = (layer.outPoint - layer.inPoint) * zoom;
-              const kfTimes = getKeyframeTimes(layer.id);
 
               return (
                 <React.Fragment key={layer.id}>
@@ -483,22 +641,6 @@ export function Timeline() {
                     )}
                   </div>
 
-                  {/* キーフレームダイヤモンド */}
-                  {kfTimes.map((time) => {
-                    const x = frameToX(time);
-                    return (
-                      <div
-                        key={`kf-${layer.id}-${time}`}
-                        className={`keyframe-diamond${time === currentFrame ? ' selected' : ''}`}
-                        style={{ left: x - 4 }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setCurrentFrame(time);
-                          selectLayer(layer.id);
-                        }}
-                      />
-                    );
-                  })}
                 </div>
 
                 {/* 展開されたプロパティ行のトラック */}
@@ -509,14 +651,85 @@ export function Timeline() {
                       <div key={`track-${layer.id}-${propName}`} className="track-row track-prop-row">
                         {propAnim && propAnim.keyframes.map((kf) => {
                           const x = frameToX(kf.time);
+                          const selected = isKfSelected(layer.id, propName, kf.time);
+                          const interpClass = kf.interpolation === 'hold' ? ' kf-hold' : kf.interpolation === 'linear' ? ' kf-linear' : '';
                           return (
                             <div
                               key={`pkf-${layer.id}-${propName}-${kf.time}`}
-                              className={`keyframe-diamond prop-diamond${kf.time === currentFrame ? ' selected' : ''}`}
+                              className={`keyframe-diamond prop-diamond${interpClass}${kf.time === currentFrame ? ' at-playhead' : ''}${selected ? ' selected' : ''}`}
                               style={{ left: x - 4 }}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setCurrentFrame(kf.time);
+                                toggleKfSelection({ layerId: layer.id, propName, time: kf.time }, e.shiftKey || e.ctrlKey || e.metaKey);
+                              }}
+                              onMouseDown={(e) => {
+                                if (e.button !== 0) return;
+                                e.stopPropagation();
+                                const kfSel = { layerId: layer.id, propName, time: kf.time };
+                                if (!selected && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+                                  setSelectedKfs([kfSel]);
+                                } else if (!selected) {
+                                  setSelectedKfs(prev => [...prev, kfSel]);
+                                }
+                                useLayerStore.getState().saveSnapshot();
+                                setKfDrag({
+                                  layerId: layer.id,
+                                  propName,
+                                  origTime: kf.time,
+                                  startX: e.clientX,
+                                  kfData: { ...kf },
+                                });
+                              }}
+                              onContextMenu={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                const kfSel = { layerId: layer.id, propName, time: kf.time };
+                                if (!selected) setSelectedKfs([kfSel]);
+                                const targetKfs = selected ? selectedKfs : [kfSel];
+                                useUIStore.getState().showContextMenu(e.clientX, e.clientY, [
+                                  {
+                                    label: `削除 (${targetKfs.length})`,
+                                    shortcut: 'Del',
+                                    action: () => {
+                                      for (const s of targetKfs) {
+                                        removeKeyframe(s.layerId, s.propName, s.time);
+                                      }
+                                      setSelectedKfs([]);
+                                    },
+                                  },
+                                  { label: '', action: () => {}, separator: true },
+                                  {
+                                    label: 'リニア',
+                                    action: () => {
+                                      for (const s of targetKfs) {
+                                        const a = animations[s.layerId]?.[s.propName];
+                                        const k = a?.keyframes.find(k2 => k2.time === s.time);
+                                        if (k) addKeyframe(s.layerId, s.propName, { ...k, interpolation: 'linear', bezierPoints: undefined });
+                                      }
+                                    },
+                                  },
+                                  {
+                                    label: 'ベジェ',
+                                    action: () => {
+                                      for (const s of targetKfs) {
+                                        const a = animations[s.layerId]?.[s.propName];
+                                        const k = a?.keyframes.find(k2 => k2.time === s.time);
+                                        if (k) addKeyframe(s.layerId, s.propName, { ...k, interpolation: 'bezier', bezierPoints: EASING_PRESETS.easeInOut });
+                                      }
+                                    },
+                                  },
+                                  {
+                                    label: 'ホールド',
+                                    action: () => {
+                                      for (const s of targetKfs) {
+                                        const a = animations[s.layerId]?.[s.propName];
+                                        const k = a?.keyframes.find(k2 => k2.time === s.time);
+                                        if (k) addKeyframe(s.layerId, s.propName, { ...k, interpolation: 'hold', bezierPoints: undefined });
+                                      }
+                                    },
+                                  },
+                                ]);
                               }}
                             />
                           );

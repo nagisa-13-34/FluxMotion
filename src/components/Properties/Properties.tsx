@@ -3,6 +3,7 @@ import { useLayerStore } from '../../stores/layerStore';
 import { useTimelineStore } from '../../stores/timelineStore';
 import type { Keyframe } from '../../types/keyframe';
 import { EASING_PRESETS } from '../../types/keyframe';
+import { interpolateValue } from '../../stores/engine/keyframe';
 
 /** トランスフォームのプロパティ定義 */
 const TRANSFORM_PROPS = [
@@ -19,6 +20,7 @@ export function Properties() {
   const updateLayer = useLayerStore((s) => s.updateLayer);
   const updateTransform = useLayerStore((s) => s.updateTransform);
   const addKeyframe = useLayerStore((s) => s.addKeyframe);
+  const removeKeyframe = useLayerStore((s) => s.removeKeyframe);
   const animations = useLayerStore((s) => s.animations);
   const currentFrame = useTimelineStore((s) => s.currentFrame);
 
@@ -55,6 +57,38 @@ export function Properties() {
     if (!selectedLayer) return false;
     const propAnim = animations[selectedLayer.id]?.[propName];
     return propAnim?.keyframes.some((kf) => kf.time === currentFrame) || false;
+  };
+
+  /** プロパティにKFが1つでもあるか（ストップウォッチ状態） */
+  const isAnimated = (propName: string): boolean => {
+    if (!selectedLayer) return false;
+    const propAnim = animations[selectedLayer.id]?.[propName];
+    return (propAnim?.keyframes.length ?? 0) > 0;
+  };
+
+  /** キーフレーム補間を考慮した値を返す */
+  const getResolvedValue = (propName: string): number | number[] | undefined => {
+    if (!selectedLayer) return undefined;
+    const propAnim = animations[selectedLayer.id]?.[propName];
+    if (!propAnim || propAnim.keyframes.length === 0) return undefined;
+    return interpolateValue(propAnim, currentFrame) ?? undefined;
+  };
+
+  /** トランスフォームの表示値を取得（KF補間 > デフォルト） */
+  const getDisplayValue = (propKey: string, defaultValue: number | [number, number]): number | [number, number] => {
+    const resolved = getResolvedValue(propKey);
+    if (resolved !== undefined) return resolved as any;
+    return defaultValue;
+  };
+
+  /** 値変更時、KFが有効なプロパティなら自動でKF更新 */
+  const handleValueChange = (propKey: string, value: number | [number, number]) => {
+    if (!selectedLayer) return;
+    updateTransform(selectedLayer.id, propKey, value);
+    // KFが有効なプロパティなら現在フレームのKFも更新
+    if (isAnimated(propKey)) {
+      handleAddKeyframe(propKey, value);
+    }
   };
 
   if (!selectedLayer) {
@@ -169,34 +203,42 @@ export function Properties() {
           {openGroups.transform && (
             <>
               {TRANSFORM_PROPS.map((prop) => {
-                const value = selectedLayer.transform[prop.key as keyof typeof selectedLayer.transform];
+                const rawValue = selectedLayer.transform[prop.key as keyof typeof selectedLayer.transform];
                 const hasKf = hasKeyframe(prop.key);
+                const animated = isAnimated(prop.key);
 
                 if (prop.type === 'xy') {
-                  const arr = value as [number, number];
+                  const defaultArr = rawValue as [number, number];
+                  const displayArr = getDisplayValue(prop.key, defaultArr) as [number, number];
                   return (
                     <div key={prop.key} className="prop-row">
                       <button
-                        className={`prop-keyframe-btn${hasKf ? ' has-keyframe' : ''}`}
-                        onClick={() => handleAddKeyframe(prop.key, arr)}
-                        title="キーフレーム追加"
+                        className={`prop-keyframe-btn${hasKf ? ' has-keyframe' : ''}${animated ? ' animated' : ''}`}
+                        onClick={() => {
+                          if (hasKf) {
+                            removeKeyframe(selectedLayer.id, prop.key, currentFrame);
+                          } else {
+                            handleAddKeyframe(prop.key, displayArr);
+                          }
+                        }}
+                        title={hasKf ? 'キーフレーム削除' : 'キーフレーム追加'}
                       >
                         <svg viewBox="0 0 12 12" width="10" height="10">
                           <rect x="3" y="3" width="6" height="6" transform="rotate(45 6 6)"
                             fill={hasKf ? 'var(--color-keyframe)' : 'none'}
-                            stroke="currentColor" strokeWidth="1.5"
+                            stroke={animated ? 'var(--color-keyframe)' : 'currentColor'} strokeWidth="1.5"
                           />
                         </svg>
                       </button>
-                      <span className="prop-label">{prop.label}</span>
+                      <span className={`prop-label${animated ? ' animated' : ''}`}>{prop.label}</span>
                       <div className="prop-value">
                         <input
                           type="number"
-                          value={Math.round(arr[0] * 10) / 10}
+                          value={Math.round(displayArr[0] * 10) / 10}
                           onChange={(e) =>
-                            updateTransform(selectedLayer.id, prop.key, [
+                            handleValueChange(prop.key, [
                               parseFloat(e.target.value) || 0,
-                              arr[1],
+                              displayArr[1],
                             ])
                           }
                           step={prop.key === 'scale' ? 1 : 0.5}
@@ -205,10 +247,10 @@ export function Properties() {
                         />
                         <input
                           type="number"
-                          value={Math.round(arr[1] * 10) / 10}
+                          value={Math.round(displayArr[1] * 10) / 10}
                           onChange={(e) =>
-                            updateTransform(selectedLayer.id, prop.key, [
-                              arr[0],
+                            handleValueChange(prop.key, [
+                              displayArr[0],
                               parseFloat(e.target.value) || 0,
                             ])
                           }
@@ -221,28 +263,35 @@ export function Properties() {
                   );
                 }
 
+                const defaultNum = rawValue as number;
+                const displayNum = getDisplayValue(prop.key, defaultNum) as number;
                 return (
                   <div key={prop.key} className="prop-row">
                     <button
-                      className={`prop-keyframe-btn${hasKf ? ' has-keyframe' : ''}`}
-                      onClick={() => handleAddKeyframe(prop.key, value as number)}
-                      title="キーフレーム追加"
+                      className={`prop-keyframe-btn${hasKf ? ' has-keyframe' : ''}${animated ? ' animated' : ''}`}
+                      onClick={() => {
+                        if (hasKf) {
+                          removeKeyframe(selectedLayer.id, prop.key, currentFrame);
+                        } else {
+                          handleAddKeyframe(prop.key, displayNum);
+                        }
+                      }}
+                      title={hasKf ? 'キーフレーム削除' : 'キーフレーム追加'}
                     >
                       <svg viewBox="0 0 12 12" width="10" height="10">
                         <rect x="3" y="3" width="6" height="6" transform="rotate(45 6 6)"
                           fill={hasKf ? 'var(--color-keyframe)' : 'none'}
-                          stroke="currentColor" strokeWidth="1.5"
+                          stroke={animated ? 'var(--color-keyframe)' : 'currentColor'} strokeWidth="1.5"
                         />
                       </svg>
                     </button>
-                    <span className="prop-label">{prop.label}</span>
+                    <span className={`prop-label${animated ? ' animated' : ''}`}>{prop.label}</span>
                     <div className="prop-value">
                       <input
                         type="number"
-                        value={Math.round((value as number) * 10) / 10}
+                        value={Math.round(displayNum * 10) / 10}
                         onChange={(e) =>
-                          updateTransform(
-                            selectedLayer.id,
+                          handleValueChange(
                             prop.key,
                             parseFloat(e.target.value) || 0
                           )

@@ -3,6 +3,7 @@ import type { Layer, BlendMode } from '../types/layer';
 import type { Keyframe, AnimatedProperty } from '../types/keyframe';
 import { createDefaultTransform, generateId } from '../types/layer';
 import { useHistoryStore } from './historyStore';
+import { interpolateValue } from './engine/keyframe';
 
 /** レイヤーごとのアニメーションデータ */
 type AnimationMap = Record<string, Record<string, AnimatedProperty>>;
@@ -256,11 +257,11 @@ export const useLayerStore = create<LayerState>((set, get) => ({
       return { animations: anim };
     }),
 
-  getAnimatedValue: (layerId, propName, _time) => {
+  getAnimatedValue: (layerId, propName, time) => {
     const anim = get().animations[layerId]?.[propName];
     if (!anim || anim.keyframes.length === 0) return undefined;
-    // キーフレーム補間はエンジン側で処理
-    return undefined;
+    const val = interpolateValue(anim, time);
+    return val ?? undefined;
   },
 
   // -- クリップボード --

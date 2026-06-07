@@ -258,16 +258,54 @@ export function Preview({ onRenderReady }: PreviewProps) {
                   top: y,
                   width: w,
                   height: h,
-                  cursor: isEditing ? 'text' : 'pointer',
-                  border: isSelected ? '1px solid var(--color-accent)' : '1px solid transparent',
+                  cursor: isEditing ? 'text' : (layer.locked ? 'default' : 'move'),
+                  border: isSelected
+                    ? '1.5px solid var(--color-accent)'
+                    : '1px solid rgba(255, 255, 255, 0.25)',
+                  borderRadius: 6,
                   boxSizing: 'border-box',
                   pointerEvents: 'auto',
+                  transition: 'border-color 0.15s',
                 }}
                 onClick={(e) => {
                   e.stopPropagation();
                   if (!isEditing) {
                     useLayerStore.getState().selectLayer(layer.id, e.ctrlKey || e.metaKey);
                   }
+                }}
+                onMouseDown={(e) => {
+                  if (e.button !== 0 || isEditing || layer.locked) return;
+                  e.stopPropagation();
+                  e.preventDefault();
+                  useLayerStore.getState().selectLayer(layer.id, e.ctrlKey || e.metaKey);
+
+                  const startX = e.clientX;
+                  const startY = e.clientY;
+                  const origPos: [number, number] = [...position];
+                  let moved = false;
+
+                  const onMove = (me: MouseEvent) => {
+                    const dx = (me.clientX - startX) / scale;
+                    const dy = (me.clientY - startY) / scale;
+                    if (!moved && (Math.abs(dx) > 1 || Math.abs(dy) > 1)) {
+                      moved = true;
+                      useLayerStore.getState().saveSnapshot();
+                    }
+                    if (!moved) return;
+                    const newPos: [number, number] = [
+                      Math.round((origPos[0] + dx) * 10) / 10,
+                      Math.round((origPos[1] + dy) * 10) / 10,
+                    ];
+                    useLayerStore.getState().updateTransform(layer.id, 'position', newPos);
+                  };
+
+                  const onUp = () => {
+                    window.removeEventListener('mousemove', onMove);
+                    window.removeEventListener('mouseup', onUp);
+                  };
+
+                  window.addEventListener('mousemove', onMove);
+                  window.addEventListener('mouseup', onUp);
                 }}
                 onDoubleClick={(e) => {
                   e.stopPropagation();

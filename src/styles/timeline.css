@@ -83,6 +83,32 @@
 .layer-row.selected {
   background: var(--color-accent-light);
 }
+.layer-row.dragging {
+  opacity: 0.4;
+}
+.layer-row.drag-over {
+  box-shadow: 0 -2px 0 0 var(--color-accent) inset;
+}
+
+.layer-grip {
+  width: 12px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  color: var(--color-text-dim);
+  opacity: 0.3;
+  flex-shrink: 0;
+  transition: opacity var(--transition-fast);
+}
+.layer-grip:hover {
+  opacity: 1;
+  color: var(--color-text-primary);
+}
+.layer-grip:active {
+  cursor: grabbing;
+}
 
 .layer-color-tag {
   width: 3px;
@@ -281,8 +307,10 @@
   transform: rotate(45deg) translateY(-50%) scale(1.3);
 }
 .keyframe-diamond.selected {
-  background: white;
-  box-shadow: 0 0 6px var(--color-keyframe);
+  background: var(--color-accent);
+  border: 2px solid #fff;
+  box-shadow: 0 0 8px var(--color-accent), 0 0 3px rgba(255, 255, 255, 0.8);
+  z-index: 10;
 }
 
 /* ---- Add Layer Buttons ---- */
@@ -395,6 +423,33 @@
   color: var(--color-text-muted);
   white-space: nowrap;
 }
+.layer-prop-name.animated {
+  color: var(--color-keyframe);
+}
+
+/* ---- Property Stopwatch Button ---- */
+.layer-prop-stopwatch {
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  color: var(--color-text-dim);
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  padding: 0;
+  transition: all var(--transition-fast);
+}
+.layer-prop-stopwatch:hover {
+  color: var(--color-keyframe);
+  background: rgba(255, 255, 255, 0.05);
+}
+.layer-prop-stopwatch.active {
+  color: var(--color-keyframe);
+}
 
 /* ---- Property Track Row ---- */
 .track-prop-row {
@@ -410,4 +465,47 @@
 }
 .prop-diamond:hover {
   background: var(--color-accent);
+}
+.prop-diamond.at-playhead {
+  background: white;
+  box-shadow: 0 0 4px var(--color-keyframe);
+}
+
+/* ---- Interpolation Type Shapes ---- */
+.keyframe-diamond.kf-linear {
+  border-radius: 50%;
+  transform: translateY(-50%);
+  background: var(--color-accent-secondary);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+}
+.keyframe-diamond.kf-linear:hover {
+  transform: translateY(-50%) scale(1.3);
+}
+.keyframe-diamond.kf-linear.selected {
+  background: var(--color-accent);
+  border: 2px solid #fff;
+  box-shadow: 0 0 8px var(--color-accent), 0 0 3px rgba(255, 255, 255, 0.8);
+}
+
+.keyframe-diamond.kf-hold {
+  transform: translateY(-50%);
+  border-radius: 1px;
+  background: var(--color-accent-secondary);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+}
+.keyframe-diamond.kf-hold:hover {
+  transform: translateY(-50%) scale(1.3);
+}
+.keyframe-diamond.kf-hold.selected {
+  background: var(--color-accent);
+  border: 2px solid #fff;
+  box-shadow: 0 0 8px var(--color-accent), 0 0 3px rgba(255, 255, 255, 0.8);
+}
+
+/* ---- Animated Prop Label in Properties Panel ---- */
+.prop-label.animated {
+  color: var(--color-keyframe) !important;
+}
+.prop-keyframe-btn.animated {
+  color: var(--color-keyframe);
 }

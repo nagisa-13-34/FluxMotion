@@ -11,6 +11,7 @@ import { useProjectStore } from './stores/projectStore';
 import { useUIStore } from './stores/uiStore';
 import { useLayerStore } from './stores/layerStore';
 import { AnimationLoop } from './stores/engine/animation';
+import { EASING_PRESETS } from './types/keyframe';
 
 export default function App() {
   const { isPlaying, togglePlay } = useTimelineStore();
@@ -139,9 +140,53 @@ export default function App() {
           renderCallbackRef.current?.();
           break;
         case 'KeyU': {
-          // U: キーフレーム付きプロパティのみ表示トグル
+          // U: 選択レイヤーを展開 + キーフレーム付きプロパティのみ表示（AE準拠）
           const uiState = useUIStore.getState();
-          uiState.setShowOnlyKeyframed(!uiState.showOnlyKeyframed);
+          const layerState = useLayerStore.getState();
+          const selectedIds = layerState.selectedLayerIds;
+          if (selectedIds.length === 0) break;
+
+          // 全選択レイヤーが既に展開済み＆showOnlyKeyframedがオンなら → 折りたたむ
+          const allExpanded = selectedIds.every(id => uiState.expandedLayerIds.includes(id));
+          if (allExpanded && uiState.showOnlyKeyframed) {
+            // 折りたたむ
+            for (const id of selectedIds) {
+              uiState.toggleExpandLayer(id);
+            }
+            uiState.setShowOnlyKeyframed(false);
+          } else {
+            // 展開してキーフレーム付きのみ表示
+            uiState.setShowOnlyKeyframed(true);
+            for (const id of selectedIds) {
+              if (!uiState.expandedLayerIds.includes(id)) {
+                uiState.toggleExpandLayer(id);
+              }
+            }
+          }
+          break;
+        }
+        case 'KeyI': {
+          // I: 選択レイヤーの全トランスフォームに現在フレームのKFを一括追加
+          e.preventDefault();
+          const ls = useLayerStore.getState();
+          const ts = useTimelineStore.getState();
+          const selIds = ls.selectedLayerIds;
+          if (selIds.length === 0) break;
+          const props = ['anchorPoint', 'position', 'scale', 'rotation', 'opacity'];
+          for (const id of selIds) {
+            const layer = ls.layers.find(l => l.id === id);
+            if (!layer) continue;
+            for (const propKey of props) {
+              const val = layer.transform[propKey as keyof typeof layer.transform];
+              ls.addKeyframe(id, propKey, {
+                time: ts.currentFrame,
+                value: Array.isArray(val) ? [...val] : val as number,
+                interpolation: 'bezier',
+                bezierPoints: EASING_PRESETS.easeInOut,
+              });
+            }
+          }
+          renderCallbackRef.current?.();
           break;
         }
       }
