@@ -1,7 +1,8 @@
-import { useRef, useEffect, useCallback, useState } from 'react';
+import React, { useRef, useEffect, useCallback, useState } from 'react';
 import { useLayerStore, getLayerColor } from '../../stores/layerStore';
 import { useTimelineStore } from '../../stores/timelineStore';
 import { useProjectStore } from '../../stores/projectStore';
+import { useUIStore } from '../../stores/uiStore';
 
 export function Timeline() {
   const layers = useLayerStore((s) => s.layers);
@@ -11,6 +12,10 @@ export function Timeline() {
   const toggleLock = useLayerStore((s) => s.toggleLock);
   const addLayer = useLayerStore((s) => s.addLayer);
   const animations = useLayerStore((s) => s.animations);
+
+  const expandedLayerIds = useUIStore((s) => s.expandedLayerIds);
+  const toggleExpandLayer = useUIStore((s) => s.toggleExpandLayer);
+  const showOnlyKeyframed = useUIStore((s) => s.showOnlyKeyframed);
 
   const currentFrame = useTimelineStore((s) => s.currentFrame);
   const setCurrentFrame = useTimelineStore((s) => s.setCurrentFrame);
@@ -236,6 +241,24 @@ export function Timeline() {
     return Array.from(times).sort((a, b) => a - b);
   };
 
+  // レイヤーのアニメーションプロパティ名を取得
+  const getAnimatedProps = (layerId: string): string[] => {
+    const layerAnim = animations[layerId];
+    if (!layerAnim) return [];
+    return Object.entries(layerAnim)
+      .filter(([_, prop]) => prop.keyframes.length > 0)
+      .map(([name]) => name);
+  };
+
+  // プロパティ名の日本語ラベル
+  const propLabel = (name: string): string => {
+    const map: Record<string, string> = {
+      position: '位置', scale: 'スケール', rotation: '回転',
+      opacity: '不透明度', anchorPoint: 'アンカー',
+    };
+    return map[name] || name;
+  };
+
   const handleAddLayerWithSnapshot = (type: Parameters<typeof addLayer>[0]) => {
     useLayerStore.getState().saveSnapshot();
     addLayer(type);
@@ -288,8 +311,8 @@ export function Timeline() {
           </div>
           <div className="timeline-layers-scroll">
             {layers.map((layer, idx) => (
+            <React.Fragment key={layer.id}>
               <div
-                key={layer.id}
                 className={`layer-row${selectedLayerIds.includes(layer.id) ? ' selected' : ''}${dragOverIndex === idx ? ' drag-over' : ''}`}
                 onClick={(e) => selectLayer(layer.id, e.ctrlKey || e.metaKey)}
                 draggable
@@ -333,7 +356,32 @@ export function Timeline() {
                   )}
                 </button>
                 <span className="layer-name">{layer.name}</span>
+                {/* 展開トグル */}
+                {getAnimatedProps(layer.id).length > 0 && (
+                  <button
+                    className="layer-expand-btn"
+                    onClick={(e) => { e.stopPropagation(); toggleExpandLayer(layer.id); }}
+                    title="プロパティを展開"
+                  >
+                    <svg viewBox="0 0 24 24" fill="currentColor" width="10" height="10"
+                      style={{ transform: expandedLayerIds.includes(layer.id) ? 'rotate(90deg)' : 'rotate(0)', transition: 'transform 0.15s' }}>
+                      <path d="M10 6L16 12L10 18" />
+                    </svg>
+                  </button>
+                )}
               </div>
+              {/* 展開されたプロパティ行 */}
+              {expandedLayerIds.includes(layer.id) && getAnimatedProps(layer.id)
+                .filter(() => !showOnlyKeyframed || true) // Uフィルター済み
+                .map((propName) => (
+                  <div key={`${layer.id}-${propName}`} className="layer-prop-row">
+                    <div className="layer-prop-indent" />
+                    <span className="layer-prop-diamond">◆</span>
+                    <span className="layer-prop-name">{propLabel(propName)}</span>
+                  </div>
+                ))
+              }
+            </React.Fragment>
             ))}
             {layers.length === 0 && (
               <div className="empty-state" style={{ padding: 'var(--space-xl)' }}>
@@ -370,7 +418,8 @@ export function Timeline() {
               const kfTimes = getKeyframeTimes(layer.id);
 
               return (
-                <div key={layer.id} className="track-row">
+                <React.Fragment key={layer.id}>
+                <div className="track-row">
                   <div
                     className={`track-clip${selectedLayerIds.includes(layer.id) ? ' selected' : ''}`}
                     style={{
@@ -440,6 +489,33 @@ export function Timeline() {
                     );
                   })}
                 </div>
+
+                {/* 展開されたプロパティ行のトラック */}
+                {expandedLayerIds.includes(layer.id) && getAnimatedProps(layer.id)
+                  .filter((p) => !showOnlyKeyframed || (animations[layer.id]?.[p]?.keyframes.length > 0))
+                  .map((propName) => {
+                    const propAnim = animations[layer.id]?.[propName];
+                    if (!propAnim) return null;
+                    return (
+                      <div key={`track-${layer.id}-${propName}`} className="track-row track-prop-row">
+                        {propAnim.keyframes.map((kf) => {
+                          const x = frameToX(kf.time);
+                          return (
+                            <div
+                              key={`pkf-${layer.id}-${propName}-${kf.time}`}
+                              className={`keyframe-diamond prop-diamond${kf.time === currentFrame ? ' selected' : ''}`}
+                              style={{ left: x - 4 }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setCurrentFrame(kf.time);
+                              }}
+                            />
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
+                </React.Fragment>
               );
             })}
             {/* プレイヘッド（トラック上） */}

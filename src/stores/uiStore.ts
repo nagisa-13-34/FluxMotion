@@ -2,6 +2,19 @@ import { create } from 'zustand';
 
 export type ToolType = 'select' | 'hand' | 'text' | 'shape' | 'pen';
 
+/** パネル配置 */
+export type PanelPosition = 'left' | 'right-top' | 'right-bottom' | 'bottom';
+export interface PanelLayout {
+  id: string;
+  label: string;
+  position: PanelPosition;
+}
+
+const DEFAULT_PANELS: PanelLayout[] = [
+  { id: 'properties', label: 'プロパティ', position: 'right-top' },
+  { id: 'easing', label: 'イージング', position: 'right-bottom' },
+];
+
 interface UIState {
   /** 選択中のツール */
   activeTool: ToolType;
@@ -18,6 +31,14 @@ interface UIState {
   };
   /** ビューポートのズーム（%） */
   viewportZoom: number;
+  /** U: キーフレーム付きプロパティのみ表示 */
+  showOnlyKeyframed: boolean;
+  /** タイムラインで展開中のレイヤーID */
+  expandedLayerIds: string[];
+  /** パネルレイアウト */
+  panels: PanelLayout[];
+  /** ドラッグ中のパネルID */
+  draggingPanelId: string | null;
 
   setTool: (tool: ToolType) => void;
   toggleProperties: () => void;
@@ -25,6 +46,10 @@ interface UIState {
   showContextMenu: (x: number, y: number, items: ContextMenuItem[]) => void;
   hideContextMenu: () => void;
   setViewportZoom: (zoom: number) => void;
+  setShowOnlyKeyframed: (v: boolean) => void;
+  toggleExpandLayer: (id: string) => void;
+  movePanel: (panelId: string, newPosition: PanelPosition) => void;
+  setDraggingPanel: (id: string | null) => void;
 }
 
 export interface ContextMenuItem {
@@ -41,6 +66,10 @@ export const useUIStore = create<UIState>((set) => ({
   activeMenu: null,
   contextMenu: { show: false, x: 0, y: 0, items: [] },
   viewportZoom: 50,
+  showOnlyKeyframed: false,
+  expandedLayerIds: [],
+  panels: DEFAULT_PANELS,
+  draggingPanelId: null,
 
   setTool: (tool) => set({ activeTool: tool }),
   toggleProperties: () => set((s) => ({ showProperties: !s.showProperties })),
@@ -53,4 +82,22 @@ export const useUIStore = create<UIState>((set) => ({
 
   setViewportZoom: (zoom) =>
     set({ viewportZoom: Math.max(10, Math.min(400, zoom)) }),
+
+  setShowOnlyKeyframed: (v) => set({ showOnlyKeyframed: v }),
+
+  toggleExpandLayer: (id) =>
+    set((s) => ({
+      expandedLayerIds: s.expandedLayerIds.includes(id)
+        ? s.expandedLayerIds.filter((x) => x !== id)
+        : [...s.expandedLayerIds, id],
+    })),
+
+  movePanel: (panelId, newPosition) =>
+    set((s) => ({
+      panels: s.panels.map((p) =>
+        p.id === panelId ? { ...p, position: newPosition } : p
+      ),
+    })),
+
+  setDraggingPanel: (id) => set({ draggingPanelId: id }),
 }));

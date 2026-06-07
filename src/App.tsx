@@ -87,21 +87,127 @@ export default function App() {
           break;
       }
 
-      // Ctrl+Z / Ctrl+Shift+Z (Undo/Redo)
-      if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
-        e.preventDefault();
-        if (e.shiftKey) {
-          useLayerStore.getState().redo();
-        } else {
-          useLayerStore.getState().undo();
+      // Ctrl/Cmd + キー
+      if (e.ctrlKey || e.metaKey) {
+        switch (e.key.toLowerCase()) {
+          case 'z':
+            e.preventDefault();
+            if (e.shiftKey) {
+              useLayerStore.getState().redo();
+            } else {
+              useLayerStore.getState().undo();
+            }
+            renderCallbackRef.current?.();
+            break;
+          case 'x':
+            e.preventDefault();
+            useLayerStore.getState().cutLayers();
+            renderCallbackRef.current?.();
+            break;
+          case 'c':
+            e.preventDefault();
+            useLayerStore.getState().copyLayers();
+            break;
+          case 'v':
+            e.preventDefault();
+            useLayerStore.getState().pasteLayers();
+            renderCallbackRef.current?.();
+            break;
+          case 'd':
+            e.preventDefault();
+            if (e.shiftKey) {
+              // Ctrl+Shift+D: 分割
+              useLayerStore.getState().splitLayer(
+                useTimelineStore.getState().currentFrame
+              );
+            } else {
+              // Ctrl+D: 複製
+              useLayerStore.getState().duplicateSelected();
+            }
+            renderCallbackRef.current?.();
+            break;
         }
-        renderCallbackRef.current?.();
+        return;
+      }
+
+      // 修飾キーなしの単独キー
+      switch (e.code) {
+        case 'Delete':
+        case 'Backspace':
+          e.preventDefault();
+          useLayerStore.getState().deleteSelected();
+          renderCallbackRef.current?.();
+          break;
+        case 'KeyU': {
+          // U: キーフレーム付きプロパティのみ表示トグル
+          const uiState = useUIStore.getState();
+          uiState.setShowOnlyKeyframed(!uiState.showOnlyKeyframed);
+          break;
+        }
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [togglePlay, totalFrames]);
+  const panels = useUIStore((s) => s.panels);
+  const movePanel = useUIStore((s) => s.movePanel);
+  const draggingPanelId = useUIStore((s) => s.draggingPanelId);
+  const setDraggingPanel = useUIStore((s) => s.setDraggingPanel);
+
+  // パネルIDからコンポーネントへのマップ
+  const panelComponents: Record<string, React.JSX.Element> = {
+    properties: <Properties />,
+    easing: <EasingEditor />,
+  };
+
+  // パネルのドラッグ開始
+  const handlePanelDragStart = (panelId: string) => {
+    setDraggingPanel(panelId);
+  };
+  const handlePanelDragEnd = () => {
+    setDraggingPanel(null);
+  };
+  const handlePanelDrop = (targetPanelId: string) => {
+    if (!draggingPanelId || draggingPanelId === targetPanelId) return;
+    // 位置を入れ替え
+    const dragPanel = panels.find((p) => p.id === draggingPanelId);
+    const targetPanel = panels.find((p) => p.id === targetPanelId);
+    if (dragPanel && targetPanel) {
+      movePanel(draggingPanelId, targetPanel.position);
+      movePanel(targetPanelId, dragPanel.position);
+    }
+    setDraggingPanel(null);
+  };
+
+  // 右パネルの表示順
+  const rightTop = panels.filter((p) => p.position === 'right-top');
+  const rightBottom = panels.filter((p) => p.position === 'right-bottom');
+
+  const renderPanel = (panel: typeof panels[0]) => (
+    <div
+      key={panel.id}
+      className={`panel-draggable${draggingPanelId === panel.id ? ' dragging' : ''}`}
+      onDragOver={(e) => e.preventDefault()}
+      onDrop={() => handlePanelDrop(panel.id)}
+    >
+      <div
+        className="panel-drag-handle"
+        draggable
+        onDragStart={() => handlePanelDragStart(panel.id)}
+        onDragEnd={handlePanelDragEnd}
+        title="ドラッグで並べ替え"
+      >
+        <svg viewBox="0 0 24 24" fill="currentColor" width="10" height="10">
+          <circle cx="8" cy="6" r="1.5" /><circle cx="16" cy="6" r="1.5" />
+          <circle cx="8" cy="12" r="1.5" /><circle cx="16" cy="12" r="1.5" />
+          <circle cx="8" cy="18" r="1.5" /><circle cx="16" cy="18" r="1.5" />
+        </svg>
+        <span>{panel.label}</span>
+      </div>
+      {panelComponents[panel.id]}
+    </div>
+  );
 
   return (
     <div className="app-layout" onClick={() => hideContextMenu()}>
@@ -111,8 +217,8 @@ export default function App() {
         onRenderReady={setRenderCallback}
       />
       <div className="right-panels">
-        <Properties />
-        <EasingEditor />
+        {rightTop.map(renderPanel)}
+        {rightBottom.map(renderPanel)}
       </div>
       <Timeline />
       <ContextMenu />

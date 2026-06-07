@@ -247,6 +247,52 @@
   overflow: hidden;
 }
 
+/* ---- Draggable Panel ---- */
+.panel-draggable {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  transition: opacity var(--transition-fast);
+}
+.panel-draggable.dragging {
+  opacity: 0.5;
+}
+.panel-draggable:not(.dragging)[draggable] {
+  cursor: grab;
+}
+
+.panel-drag-handle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-xxs) var(--space-sm);
+  background: var(--color-bg-dark);
+  border-bottom: 1px solid var(--color-border);
+  cursor: grab;
+  user-select: none;
+  font-size: var(--font-size-xxs);
+  color: var(--color-text-dim);
+  transition: background var(--transition-fast);
+}
+.panel-drag-handle:hover {
+  background: var(--color-bg-hover);
+  color: var(--color-text-muted);
+}
+.panel-drag-handle:active {
+  cursor: grabbing;
+}
+.panel-drag-handle svg {
+  opacity: 0.4;
+  flex-shrink: 0;
+}
+.panel-drag-handle span {
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
 /* ---- Properties Panel ---- */
 .properties {
   background: var(--color-bg-panel);

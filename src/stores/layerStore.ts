@@ -36,8 +36,17 @@ interface LayerState {
   removeKeyframe: (layerId: string, propName: string, time: number) => void;
   getAnimatedValue: (layerId: string, propName: string, time: number) => number | number[] | undefined;
 
+  // -- クリップボード --
+  cutLayers: () => void;
+  copyLayers: () => void;
+  pasteLayers: () => void;
+  duplicateSelected: () => void;
+  /** 選択レイヤーを指定フレームで分割 */
+  splitLayer: (frame: number) => void;
+  /** 選択レイヤーを削除 */
+  deleteSelected: () => void;
+
   // -- Undo/Redo --
-  /** 現在の状態をスナップショットに記録 */
   saveSnapshot: () => void;
   undo: () => void;
   redo: () => void;
@@ -70,6 +79,9 @@ function getLayerColor(type: Layer['type']): string {
   };
   return colors[type] || '#636E72';
 }
+
+/** クリップボード（モジュールレベル） */
+let clipboard: { layers: Layer[]; animations: AnimationMap } | null = null;
 
 export const useLayerStore = create<LayerState>((set, get) => ({
   layers: [],
@@ -140,7 +152,12 @@ export const useLayerStore = create<LayerState>((set, get) => ({
     const idx = state.layers.findIndex((l) => l.id === id);
     const newLayers = [...state.layers];
     newLayers.splice(idx, 0, clone);
-    set({ layers: newLayers, selectedLayerIds: [newId] });
+    // アニメーションもコピー
+    const newAnims = { ...state.animations };
+    if (state.animations[id]) {
+      newAnims[newId] = JSON.parse(JSON.stringify(state.animations[id]));
+    }
+    set({ layers: newLayers, selectedLayerIds: [newId], animations: newAnims });
   },
 
   reorderLayer: (fromIndex, toIndex) =>
@@ -244,6 +261,105 @@ export const useLayerStore = create<LayerState>((set, get) => ({
     if (!anim || anim.keyframes.length === 0) return undefined;
     // キーフレーム補間はエンジン側で処理
     return undefined;
+  },
+
+  // -- クリップボード --
+  copyLayers: () => {
+    const { layers, selectedLayerIds, animations } = get();
+    const selected = layers.filter((l) => selectedLayerIds.includes(l.id));
+    if (selected.length === 0) return;
+    const animSnap: AnimationMap = {};
+    for (const l of selected) {
+      if (animations[l.id]) animSnap[l.id] = JSON.parse(JSON.stringify(animations[l.id]));
+    }
+    clipboard = { layers: JSON.parse(JSON.stringify(selected)), animations: animSnap };
+  },
+
+  cutLayers: () => {
+    get().copyLayers();
+    get().saveSnapshot();
+    const { selectedLayerIds } = get();
+    set((s) => ({
+      layers: s.layers.filter((l) => !selectedLayerIds.includes(l.id)),
+      selectedLayerIds: [],
+    }));
+  },
+
+  pasteLayers: () => {
+    if (!clipboard) return;
+    get().saveSnapshot();
+    const newLayers: Layer[] = [];
+    const newAnims: AnimationMap = {};
+    const idMap: Record<string, string> = {};
+    for (const l of clipboard.layers) {
+      const newId = generateId();
+      idMap[l.id] = newId;
+      newLayers.push({ ...JSON.parse(JSON.stringify(l)), id: newId, name: `${l.name}` });
+      if (clipboard.animations[l.id]) {
+        newAnims[newId] = JSON.parse(JSON.stringify(clipboard.animations[l.id]));
+      }
+    }
+    set((s) => ({
+      layers: [...newLayers, ...s.layers],
+      animations: { ...s.animations, ...newAnims },
+      selectedLayerIds: newLayers.map((l) => l.id),
+    }));
+  },
+
+  duplicateSelected: () => {
+    const { selectedLayerIds } = get();
+    get().saveSnapshot();
+    for (const id of selectedLayerIds) {
+      get().duplicateLayer(id);
+    }
+  },
+
+  splitLayer: (frame) => {
+    const { layers, selectedLayerIds, animations } = get();
+    if (selectedLayerIds.length === 0) return;
+    get().saveSnapshot();
+    const newLayers = [...layers];
+    const newAnims = { ...animations };
+    const newSelected: string[] = [];
+
+    for (const id of selectedLayerIds) {
+      const idx = newLayers.findIndex((l) => l.id === id);
+      if (idx < 0) continue;
+      const layer = newLayers[idx];
+      // 分割ポイントがレイヤー範囲外なら無視
+      if (frame <= layer.inPoint || frame >= layer.outPoint) {
+        newSelected.push(id);
+        continue;
+      }
+      // 前半: 元レイヤーのoutPointを分割フレームに
+      const front = { ...layer, outPoint: frame };
+      // 後半: 新レイヤー
+      const backId = generateId();
+      const back: Layer = {
+        ...JSON.parse(JSON.stringify(layer)),
+        id: backId,
+        name: `${layer.name} (後半)`,
+        inPoint: frame,
+      };
+      newLayers[idx] = front;
+      newLayers.splice(idx + 1, 0, back);
+      // アニメーションもコピー
+      if (animations[id]) {
+        newAnims[backId] = JSON.parse(JSON.stringify(animations[id]));
+      }
+      newSelected.push(id, backId);
+    }
+    set({ layers: newLayers, animations: newAnims, selectedLayerIds: newSelected });
+  },
+
+  deleteSelected: () => {
+    const { selectedLayerIds } = get();
+    if (selectedLayerIds.length === 0) return;
+    get().saveSnapshot();
+    set((s) => ({
+      layers: s.layers.filter((l) => !selectedLayerIds.includes(l.id)),
+      selectedLayerIds: [],
+    }));
   },
 
   // -- Undo/Redo --
