@@ -250,6 +250,17 @@ export function Timeline() {
       .map(([name]) => name);
   };
 
+  // 全トランスフォームプロパティ
+  const ALL_PROPS = ['anchorPoint', 'position', 'scale', 'rotation', 'opacity'];
+
+  // 表示するプロパティ一覧を取得（Uキー対応）
+  const getDisplayProps = (layerId: string): string[] => {
+    if (showOnlyKeyframed) {
+      return getAnimatedProps(layerId);
+    }
+    return ALL_PROPS;
+  };
+
   // プロパティ名の日本語ラベル
   const propLabel = (name: string): string => {
     const map: Record<string, string> = {
@@ -357,29 +368,29 @@ export function Timeline() {
                 </button>
                 <span className="layer-name">{layer.name}</span>
                 {/* 展開トグル */}
-                {getAnimatedProps(layer.id).length > 0 && (
-                  <button
-                    className="layer-expand-btn"
-                    onClick={(e) => { e.stopPropagation(); toggleExpandLayer(layer.id); }}
-                    title="プロパティを展開"
-                  >
-                    <svg viewBox="0 0 24 24" fill="currentColor" width="10" height="10"
-                      style={{ transform: expandedLayerIds.includes(layer.id) ? 'rotate(90deg)' : 'rotate(0)', transition: 'transform 0.15s' }}>
-                      <path d="M10 6L16 12L10 18" />
-                    </svg>
-                  </button>
-                )}
+                <button
+                  className="layer-expand-btn"
+                  onClick={(e) => { e.stopPropagation(); toggleExpandLayer(layer.id); }}
+                  title="プロパティを展開"
+                >
+                  <svg viewBox="0 0 24 24" fill="currentColor" width="10" height="10"
+                    style={{ transform: expandedLayerIds.includes(layer.id) ? 'rotate(90deg)' : 'rotate(0)', transition: 'transform 0.15s' }}>
+                    <path d="M10 6L16 12L10 18" />
+                  </svg>
+                </button>
               </div>
               {/* 展開されたプロパティ行 */}
-              {expandedLayerIds.includes(layer.id) && getAnimatedProps(layer.id)
-                .filter(() => !showOnlyKeyframed || true) // Uフィルター済み
-                .map((propName) => (
-                  <div key={`${layer.id}-${propName}`} className="layer-prop-row">
-                    <div className="layer-prop-indent" />
-                    <span className="layer-prop-diamond">◆</span>
-                    <span className="layer-prop-name">{propLabel(propName)}</span>
-                  </div>
-                ))
+              {expandedLayerIds.includes(layer.id) && getDisplayProps(layer.id)
+                .map((propName) => {
+                  const hasKf = (animations[layer.id]?.[propName]?.keyframes.length ?? 0) > 0;
+                  return (
+                    <div key={`${layer.id}-${propName}`} className="layer-prop-row">
+                      <div className="layer-prop-indent" />
+                      <span className={`layer-prop-diamond${hasKf ? '' : ' no-kf'}`}>◆</span>
+                      <span className="layer-prop-name">{propLabel(propName)}</span>
+                    </div>
+                  );
+                })
               }
             </React.Fragment>
             ))}
@@ -491,14 +502,12 @@ export function Timeline() {
                 </div>
 
                 {/* 展開されたプロパティ行のトラック */}
-                {expandedLayerIds.includes(layer.id) && getAnimatedProps(layer.id)
-                  .filter((p) => !showOnlyKeyframed || (animations[layer.id]?.[p]?.keyframes.length > 0))
+                {expandedLayerIds.includes(layer.id) && getDisplayProps(layer.id)
                   .map((propName) => {
                     const propAnim = animations[layer.id]?.[propName];
-                    if (!propAnim) return null;
                     return (
                       <div key={`track-${layer.id}-${propName}`} className="track-row track-prop-row">
-                        {propAnim.keyframes.map((kf) => {
+                        {propAnim && propAnim.keyframes.map((kf) => {
                           const x = frameToX(kf.time);
                           return (
                             <div

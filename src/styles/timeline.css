@@ -385,6 +385,10 @@
   color: var(--color-keyframe);
   flex-shrink: 0;
 }
+.layer-prop-diamond.no-kf {
+  color: var(--color-text-dim);
+  opacity: 0.3;
+}
 
 .layer-prop-name {
   font-size: var(--font-size-xxs);
