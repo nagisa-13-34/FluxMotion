@@ -159,4 +159,4 @@ docs/                    # ドキュメント
 
 ## ライセンス
 
-Private
+MIT License. 詳しくは [LICENSE](LICENSE) を参照。
