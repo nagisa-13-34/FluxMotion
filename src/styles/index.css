@@ -1,0 +1,218 @@
+/* ============================================================
+   NGS MovieEditor - Design System
+   AE-inspired dark theme with modern aesthetics
+   ============================================================ */
+
+/* ---- CSS Custom Properties ---- */
+:root {
+  /* === Colors === */
+  /* メインカラーパレット */
+  --color-bg-darkest: #0a0a0f;
+  --color-bg-darker: #111118;
+  --color-bg-dark: #1a1a24;
+  --color-bg-panel: #1e1e2a;
+  --color-bg-elevated: #252535;
+  --color-bg-hover: #2d2d40;
+  --color-bg-active: #35355a;
+  --color-bg-input: #151520;
+
+  /* テキスト */
+  --color-text-primary: #e8e8f0;
+  --color-text-secondary: #9999b3;
+  --color-text-muted: #666680;
+  --color-text-dim: #444460;
+
+  /* アクセントカラー */
+  --color-accent: #6C5CE7;
+  --color-accent-hover: #7f70f0;
+  --color-accent-light: rgba(108, 92, 231, 0.2);
+  --color-accent-secondary: #00CEC9;
+  --color-accent-secondary-light: rgba(0, 206, 201, 0.15);
+
+  /* ステータスカラー */
+  --color-success: #00B894;
+  --color-warning: #FDCB6E;
+  --color-error: #E17055;
+  --color-info: #74B9FF;
+
+  /* キーフレーム・タイムライン */
+  --color-keyframe: #FD79A8;
+  --color-keyframe-selected: #FF9AC1;
+  --color-playhead: #E17055;
+  --color-timeline-ruler: #2d2d40;
+  --color-timeline-grid: rgba(255, 255, 255, 0.04);
+  --color-timeline-grid-major: rgba(255, 255, 255, 0.08);
+
+  /* レイヤーカラー */
+  --color-layer-solid: #6C5CE7;
+  --color-layer-text: #00CEC9;
+  --color-layer-image: #FDCB6E;
+  --color-layer-video: #E17055;
+  --color-layer-shape: #A29BFE;
+  --color-layer-adjustment: #FD79A8;
+  --color-layer-null: #636E72;
+
+  /* ボーダー */
+  --color-border: rgba(255, 255, 255, 0.06);
+  --color-border-subtle: rgba(255, 255, 255, 0.03);
+  --color-border-focus: var(--color-accent);
+
+  /* シャドウ */
+  --shadow-panel: 0 2px 16px rgba(0, 0, 0, 0.4);
+  --shadow-dropdown: 0 8px 32px rgba(0, 0, 0, 0.6);
+  --shadow-modal: 0 16px 64px rgba(0, 0, 0, 0.7);
+  --shadow-glow: 0 0 20px rgba(108, 92, 231, 0.3);
+
+  /* === Spacing === */
+  --space-xxs: 2px;
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 24px;
+  --space-xxl: 32px;
+
+  /* === Typography === */
+  --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', monospace;
+
+  --font-size-xxs: 9px;
+  --font-size-xs: 10px;
+  --font-size-sm: 11px;
+  --font-size-md: 12px;
+  --font-size-lg: 13px;
+  --font-size-xl: 14px;
+  --font-size-xxl: 16px;
+  --font-size-title: 18px;
+
+  --font-weight-light: 300;
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* === Layout === */
+  --menubar-height: 32px;
+  --toolbar-width: 40px;
+  --panel-header-height: 28px;
+  --panel-min-width: 200px;
+  --panel-border-radius: 4px;
+  --timeline-height: 280px;
+  --timeline-track-height: 28px;
+  --timeline-ruler-height: 24px;
+  --properties-width: 280px;
+
+  /* === Radius === */
+  --radius-xs: 2px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-full: 999px;
+
+  /* === Transitions === */
+  --transition-fast: 0.1s ease;
+  --transition-normal: 0.2s ease;
+  --transition-slow: 0.3s ease;
+  --transition-spring: 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+/* ---- Global Reset ---- */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: var(--font-family);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-normal);
+  color: var(--color-text-primary);
+  background: var(--color-bg-darkest);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  line-height: 1.4;
+  user-select: none;
+}
+
+/* スクロールバーカスタマイズ */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-full);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* フォーカスリング */
+:focus-visible {
+  outline: 1px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+/* 選択ハイライト */
+::selection {
+  background: var(--color-accent-light);
+  color: var(--color-text-primary);
+}
+
+/* ---- Base Input Styles ---- */
+input, button, select, textarea {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+  border: none;
+  outline: none;
+  background: none;
+}
+
+input[type="text"],
+input[type="number"] {
+  background: var(--color-bg-input);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-xs) var(--space-sm);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  transition: border-color var(--transition-fast);
+}
+input[type="text"]:focus,
+input[type="number"]:focus {
+  border-color: var(--color-accent);
+}
+input[type="number"] {
+  font-family: var(--font-mono);
+  text-align: right;
+  width: 60px;
+  -moz-appearance: textfield;
+}
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+}
+
+/* ---- Utility Classes ---- */
+.mono {
+  font-family: var(--font-mono);
+}
+.truncate {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

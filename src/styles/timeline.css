@@ -1,0 +1,344 @@
+/* ============================================================
+   Timeline Panel Styles
+   ============================================================ */
+
+/* ---- Timeline Container ---- */
+.timeline {
+  grid-area: timeline;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-bg-panel);
+  border-top: 1px solid var(--color-border);
+  overflow: hidden;
+}
+
+.timeline-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  height: var(--panel-header-height);
+  padding: 0 var(--space-md);
+  background: var(--color-bg-dark);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.timeline-header-title {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.timeline-header-spacer {
+  flex: 1;
+}
+
+/* ---- Timeline Body ---- */
+.timeline-body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* ---- Layer List (Left side) ---- */
+.timeline-layers {
+  width: 240px;
+  min-width: 200px;
+  border-right: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  background: var(--color-bg-dark);
+}
+
+.timeline-layers-header {
+  height: var(--timeline-ruler-height);
+  display: flex;
+  align-items: center;
+  padding: 0 var(--space-sm);
+  border-bottom: 1px solid var(--color-border);
+  gap: var(--space-xs);
+}
+
+.timeline-layers-scroll {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* ---- Layer Row ---- */
+.layer-row {
+  display: flex;
+  align-items: center;
+  height: var(--timeline-track-height);
+  padding: 0 var(--space-sm);
+  gap: var(--space-xs);
+  border-bottom: 1px solid var(--color-border-subtle);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+.layer-row:hover {
+  background: var(--color-bg-hover);
+}
+.layer-row.selected {
+  background: var(--color-accent-light);
+}
+
+.layer-color-tag {
+  width: 3px;
+  height: 16px;
+  border-radius: var(--radius-full);
+  flex-shrink: 0;
+}
+
+.layer-visibility-btn,
+.layer-lock-btn,
+.layer-solo-btn {
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  color: var(--color-text-dim);
+  transition: all var(--transition-fast);
+  flex-shrink: 0;
+}
+.layer-visibility-btn:hover,
+.layer-lock-btn:hover,
+.layer-solo-btn:hover {
+  color: var(--color-text-primary);
+  background: rgba(255, 255, 255, 0.05);
+}
+.layer-visibility-btn.active {
+  color: var(--color-text-primary);
+}
+.layer-lock-btn.active {
+  color: var(--color-warning);
+}
+.layer-solo-btn.active {
+  color: var(--color-accent-secondary);
+}
+
+.layer-visibility-btn svg,
+.layer-lock-btn svg,
+.layer-solo-btn svg {
+  width: 12px;
+  height: 12px;
+}
+
+.layer-name {
+  flex: 1;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.layer-name-input {
+  flex: 1;
+  font-size: var(--font-size-xs);
+  background: var(--color-bg-input);
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-xs);
+  padding: 1px var(--space-xs);
+  min-width: 0;
+}
+
+/* ---- Tracks Area (Right side) ---- */
+.timeline-tracks {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+}
+
+/* ---- Ruler ---- */
+.timeline-ruler {
+  height: var(--timeline-ruler-height);
+  background: var(--color-bg-dark);
+  border-bottom: 1px solid var(--color-border);
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.ruler-tick {
+  position: absolute;
+  top: 0;
+  width: 1px;
+  background: var(--color-timeline-ruler);
+}
+
+.ruler-tick-major {
+  height: 100%;
+}
+
+.ruler-tick-minor {
+  height: 40%;
+  bottom: 0;
+  top: auto;
+}
+
+.ruler-label {
+  position: absolute;
+  top: 2px;
+  font-size: var(--font-size-xxs);
+  font-family: var(--font-mono);
+  color: var(--color-text-muted);
+  transform: translateX(4px);
+  white-space: nowrap;
+}
+
+/* ---- Track Clips ---- */
+.timeline-tracks-scroll {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  position: relative;
+}
+
+.track-row {
+  height: var(--timeline-track-height);
+  position: relative;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+.track-row:nth-child(even) {
+  background: rgba(255, 255, 255, 0.01);
+}
+
+.track-clip {
+  position: absolute;
+  top: 3px;
+  height: calc(var(--timeline-track-height) - 6px);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  padding: 0 var(--space-sm);
+  font-size: var(--font-size-xxs);
+  color: rgba(255, 255, 255, 0.9);
+  overflow: hidden;
+  transition: filter var(--transition-fast);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.track-clip:hover {
+  filter: brightness(1.2);
+}
+.track-clip.selected {
+  border-color: white;
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.2);
+}
+
+.track-clip-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---- Playhead ---- */
+.playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--color-playhead);
+  z-index: 20;
+  pointer-events: none;
+}
+
+.playhead::before {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: -5px;
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 6px solid var(--color-playhead);
+}
+
+/* ---- Keyframe Diamonds ---- */
+.keyframe-diamond {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  background: var(--color-keyframe);
+  transform: rotate(45deg) translateY(-50%);
+  top: 50%;
+  cursor: pointer;
+  z-index: 5;
+  transition: all var(--transition-fast);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+.keyframe-diamond:hover {
+  background: var(--color-keyframe-selected);
+  transform: rotate(45deg) translateY(-50%) scale(1.3);
+}
+.keyframe-diamond.selected {
+  background: white;
+  box-shadow: 0 0 6px var(--color-keyframe);
+}
+
+/* ---- Add Layer Buttons ---- */
+.add-layer-area {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-sm);
+}
+
+.add-layer-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-xs) var(--space-sm);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  border: 1px dashed var(--color-border);
+  transition: all var(--transition-fast);
+}
+.add-layer-btn:hover {
+  color: var(--color-text-primary);
+  border-color: var(--color-accent);
+  background: var(--color-accent-light);
+}
+.add-layer-btn svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* ---- Trim Handles ---- */
+.trim-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: ew-resize;
+  z-index: 10;
+  transition: background var(--transition-fast);
+}
+.trim-handle:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+.trim-handle-left {
+  left: 0;
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+}
+.trim-handle-right {
+  right: 0;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+
+/* ---- Layer Drag Over ---- */
+.layer-row.drag-over {
+  border-top: 2px solid var(--color-accent);
+  background: var(--color-accent-light);
+}
