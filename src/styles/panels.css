@@ -57,23 +57,19 @@
   color: var(--color-text-primary) !important;
 }
 
-/* タブセットのタブストリップ（非表示化） */
+/* タブセットのタブストリップ */
 .flexlayout__tabset_tabbar_outer {
-  display: none !important;
+  background: var(--color-bg-darker) !important;
+  border-bottom: 1px solid var(--color-border) !important;
 }
 
 .flexlayout__tabset_tabbar_inner {
-  display: none !important;
+  background: transparent !important;
 }
 
-/* タブセットヘッダー（最大化ボタン等）も非表示 */
-.flexlayout__tabset_header {
-  display: none !important;
-}
-
-/* スプリッター */
+/* スプリッター（普段は透明、ホバー時のみ表示） */
 .flexlayout__splitter {
-  background: var(--color-bg-darkest) !important;
+  background: transparent !important;
 }
 
 .flexlayout__splitter:hover {
