@@ -67,31 +67,34 @@ export class Renderer {
       // キーフレームアニメーションからトランスフォームを取得
       const transform = this.resolveTransform(layer, currentFrame, animations);
 
+      const renderContent = () => {
+        switch (layer.type) {
+          case 'solid':
+            this.renderSolid(ctx, layer);
+            break;
+          case 'text':
+            this.renderText(ctx, layer, currentFrame, animations);
+            break;
+          case 'shape':
+            this.renderShape(ctx, layer, currentFrame, animations);
+            break;
+          default:
+            this.renderPlaceholder(ctx, layer);
+            break;
+        }
+      };
+
       ctx.save();
       this.applyBlendMode(ctx, layer);
       ctx.globalAlpha = transform.opacity / 100;
 
       if (transform.directionalScale) {
-        // 方向別スケール: 各方向を独立に適用
-        this.applyDirectionalScale(ctx, layer, transform);
+        // 方向別スケール: 上下左右を独立にスケーリング（クリップベース）
+        this.renderDirectionalScale(ctx, transform, renderContent);
       } else {
         // 通常スケール
         this.applyTransformValues(ctx, transform);
-      }
-
-      switch (layer.type) {
-        case 'solid':
-          this.renderSolid(ctx, layer);
-          break;
-        case 'text':
-          this.renderText(ctx, layer, currentFrame, animations);
-          break;
-        case 'shape':
-          this.renderShape(ctx, layer, currentFrame, animations);
-          break;
-        default:
-          this.renderPlaceholder(ctx, layer);
-          break;
+        renderContent();
       }
 
       ctx.restore();
@@ -219,10 +222,9 @@ export class Renderer {
     ctx.translate(-transform.anchorPoint[0], -transform.anchorPoint[1]);
   }
 
-  /** 方向別スケール適用 */
-  private applyDirectionalScale(
+  /** 方向別スケール描画（クリップベースで上下左右を独立スケーリング） */
+  private renderDirectionalScale(
     ctx: CanvasRenderingContext2D,
-    _layer: Layer,
     transform: {
       anchorPoint: [number, number];
       position: [number, number];
@@ -231,32 +233,46 @@ export class Renderer {
       opacity: number;
       directionalScale?: { top?: number; bottom?: number; left?: number; right?: number };
     },
+    renderContent: () => void,
   ) {
     const ds = transform.directionalScale!;
     const ap = transform.anchorPoint;
+    const pos = transform.position;
+    const rot = (transform.rotation * Math.PI) / 180;
 
-    // 位置・回転は通常通り
-    ctx.translate(transform.position[0], transform.position[1]);
-    ctx.rotate((transform.rotation * Math.PI) / 180);
+    const topFactor = (ds.top ?? transform.scale[1]) / 100;
+    const bottomFactor = (ds.bottom ?? transform.scale[1]) / 100;
+    const leftFactor = (ds.left ?? transform.scale[0]) / 100;
+    const rightFactor = (ds.right ?? transform.scale[0]) / 100;
 
-    // 方向別スケール: 各方向の合成（位置ずれなし）
-    let sx = transform.scale[0] / 100;
-    let sy = transform.scale[1] / 100;
+    // 大きなクリップ用サイズ
+    const BIG = 10000;
 
-    if (ds.top !== undefined || ds.bottom !== undefined) {
-      const topFactor = (ds.top ?? transform.scale[1]) / 100;
-      const bottomFactor = (ds.bottom ?? transform.scale[1]) / 100;
-      sy = (topFactor + bottomFactor) / 2;
-    }
-
-    if (ds.left !== undefined || ds.right !== undefined) {
-      const leftFactor = (ds.left ?? transform.scale[0]) / 100;
-      const rightFactor = (ds.right ?? transform.scale[0]) / 100;
-      sx = (leftFactor + rightFactor) / 2;
-    }
-
-    ctx.scale(sx, sy);
+    // --- 上半分を描画 (Y <= pos.y の領域) ---
+    ctx.save();
+    // ワールドスペースでpos.yより上をクリップ
+    ctx.beginPath();
+    ctx.rect(-BIG, -BIG, BIG * 2, BIG + pos[1]);
+    ctx.clip();
+    // 上方向のスケール: 上端固定ではなくpos(アンカー位置)を基準に上方向だけ
+    ctx.translate(pos[0], pos[1]);
+    ctx.rotate(rot);
+    ctx.scale(leftFactor, topFactor);
     ctx.translate(-ap[0], -ap[1]);
+    renderContent();
+    ctx.restore();
+
+    // --- 下半分を描画 (Y >= pos.y の領域) ---
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(-BIG, pos[1], BIG * 2, BIG);
+    ctx.clip();
+    ctx.translate(pos[0], pos[1]);
+    ctx.rotate(rot);
+    ctx.scale(rightFactor, bottomFactor);
+    ctx.translate(-ap[0], -ap[1]);
+    renderContent();
+    ctx.restore();
   }
 
   /** ブレンドモード適用 */
