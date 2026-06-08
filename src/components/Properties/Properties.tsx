@@ -554,37 +554,38 @@ export function Properties() {
 
                   // スケール段階2: 上下左右（4行）
                   if (prop.key === 'scale' && splitLevel === 2) {
-                    const dirs = ['上', '下', '左', '右'];
+                    const dirs = [
+                      { label: '上', key: 'scale.top', axisIdx: 1 },
+                      { label: '下', key: 'scale.bottom', axisIdx: 1 },
+                      { label: '左', key: 'scale.left', axisIdx: 0 },
+                      { label: '右', key: 'scale.right', axisIdx: 0 },
+                    ];
                     return (
                       <div key={prop.key}>
-                        {dirs.map((dir, i) => {
-                          const isXAxis = i >= 2;
-                          const axisIdx = isXAxis ? 0 : 1;
-                          return (
-                            <div key={`${prop.key}_${dir}`} className="prop-row prop-row-kf"
-                              onContextMenu={(e) => openContextMenu(e, prop.key, displayArr)}>
-                              {makeSplitKfControls(`${prop.key}.${isXAxis ? 'x' : 'y'}`, displayArr[axisIdx])}
-                              <span className={`prop-label scrub${animated ? ' animated' : ''}`}
-                                onMouseDown={(e) => handleDragStart(e, displayArr[axisIdx], (v) => {
-                                  const a: [number, number] = [...displayArr];
-                                  a[axisIdx] = v;
-                                  handleValueChange(prop.key, a);
-                                }, { step: stepVal })}
-                              >
-                                {`${prop.label} ${dir}`}
-                                {i === 0 && scaleChainInline}
-                              </span>
-                              <div className="prop-value">
-                                {numInput(displayArr[axisIdx], (v) => {
-                                  const a: [number, number] = [...displayArr];
-                                  a[axisIdx] = v;
-                                  handleValueChange(prop.key, a);
-                                }, stepVal)}
-                                {prop.suffix && <span style={{ fontSize: 'var(--font-size-xxs)', color: 'var(--color-text-dim)' }}>{prop.suffix}</span>}
-                              </div>
+                        {dirs.map((d, i) => (
+                          <div key={d.key} className="prop-row prop-row-kf"
+                            onContextMenu={(e) => openContextMenu(e, d.key, displayArr[d.axisIdx])}>
+                            {makeSplitKfControls(d.key, displayArr[d.axisIdx])}
+                            <span className={`prop-label scrub${isAnimated(d.key) ? ' animated' : ''}`}
+                              onMouseDown={(e) => handleDragStart(e, displayArr[d.axisIdx], (v) => {
+                                const a: [number, number] = [...displayArr];
+                                a[d.axisIdx] = v;
+                                handleValueChange(prop.key, a);
+                              }, { step: stepVal })}
+                            >
+                              {`${prop.label} ${d.label}`}
+                              {i === 0 && scaleChainInline}
+                            </span>
+                            <div className="prop-value">
+                              {numInput(displayArr[d.axisIdx], (v) => {
+                                const a: [number, number] = [...displayArr];
+                                a[d.axisIdx] = v;
+                                handleValueChange(prop.key, a);
+                              }, stepVal)}
+                              {prop.suffix && <span style={{ fontSize: 'var(--font-size-xxs)', color: 'var(--color-text-dim)' }}>{prop.suffix}</span>}
                             </div>
-                          );
-                        })}
+                          </div>
+                        ))}
                       </div>
                     );
                   }

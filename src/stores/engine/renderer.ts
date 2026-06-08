@@ -145,9 +145,13 @@ export class Renderer {
           if (Array.isArray(val)) result.scale = val as [number, number];
           break;
         case 'scale.x':
+        case 'scale.left':
+        case 'scale.right':
           if (typeof val === 'number') result.scale[0] = val;
           break;
         case 'scale.y':
+        case 'scale.top':
+        case 'scale.bottom':
           if (typeof val === 'number') result.scale[1] = val;
           break;
         case 'rotation':
