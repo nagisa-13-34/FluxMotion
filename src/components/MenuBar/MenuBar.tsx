@@ -160,7 +160,20 @@ export function MenuBar() {
                   <div className="dropdown-item disabled">ペースト <span className="shortcut">Ctrl+V</span></div>
                 </>
               )}
-              {(menu !== 'ファイル' && menu !== 'レイヤー' && menu !== '編集') && (
+              {menu === '表示' && (
+                <>
+                  <div
+                    className="dropdown-item"
+                    onClick={() => {
+                      useUIStore.getState().toggleEasingEditor();
+                      setActiveMenu(null);
+                    }}
+                  >
+                    {useUIStore.getState().isEasingEditorOpen ? '✓ ' : '　'}イージングエディター
+                  </div>
+                </>
+              )}
+              {(menu !== 'ファイル' && menu !== 'レイヤー' && menu !== '編集' && menu !== '表示') && (
                 <div className="dropdown-item disabled" style={{ color: 'var(--color-text-dim)' }}>
                   Coming soon...
                 </div>

@@ -179,10 +179,8 @@ export function Timeline() {
       const newSelections: typeof selectedKfs = [];
 
       for (const sel of kfsToMove) {
-        // 現在の位置を見つける
         const anim = store.animations[sel.layerId]?.[sel.propName];
-        const existingKf = anim?.keyframes.find(k => k.time === sel.time + actualDelta - (newTime - kfDrag.kfData.time !== 0 ? newTime - kfDrag.kfData.time : 0));
-        // シンプルに: 全部元の位置から再計算
+
         const origKfTime = sel.time;
         const currentKfTime = origKfTime + actualDelta;
         const prevDelta = kfDrag.kfData.time - kfDrag.origTime;
@@ -357,18 +355,6 @@ export function Timeline() {
     });
   };
 
-  // キーフレームダイヤモンドを取得
-  const getKeyframeTimes = (layerId: string): number[] => {
-    const layerAnim = animations[layerId];
-    if (!layerAnim) return [];
-    const times = new Set<number>();
-    for (const prop of Object.values(layerAnim)) {
-      for (const kf of prop.keyframes) {
-        times.add(kf.time);
-      }
-    }
-    return Array.from(times).sort((a, b) => a - b);
-  };
 
   // レイヤーのアニメーションプロパティ名を取得
   const getAnimatedProps = (layerId: string): string[] => {
@@ -726,6 +712,16 @@ export function Timeline() {
                                         const a = animations[s.layerId]?.[s.propName];
                                         const k = a?.keyframes.find(k2 => k2.time === s.time);
                                         if (k) addKeyframe(s.layerId, s.propName, { ...k, interpolation: 'hold', bezierPoints: undefined });
+                                      }
+                                    },
+                                  },
+                                  { label: '', action: () => {}, separator: true },
+                                  {
+                                    label: 'イージングを編集',
+                                    action: () => {
+                                      const uiState = useUIStore.getState();
+                                      if (!uiState.isEasingEditorOpen) {
+                                        uiState.toggleEasingEditor();
                                       }
                                     },
                                   },

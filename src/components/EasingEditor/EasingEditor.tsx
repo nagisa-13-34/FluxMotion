@@ -1147,7 +1147,7 @@ export function EasingEditor() {
   };
 
   return (
-    <div className="easing-editor" onClick={() => { setContextMenu(null); }}>
+    <div className="easing-editor" style={{ display: 'flex', flexDirection: 'column', height: '100%' }} onClick={() => { setContextMenu(null); }}>
       <div className="panel-header" style={{ justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
           <svg className="panel-header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -1159,7 +1159,7 @@ export function EasingEditor() {
           <MIcon name="settings" size={14} />
         </button>
       </div>
-      <div className="panel-content" style={{ padding: 0 }}>
+      <div className="panel-content" style={{ padding: 0, display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
 
         {/* Bezier / Bounce / Elastic タブ */}
         <div style={{ display: 'flex', borderBottom: '1px solid var(--color-border)' }}>
@@ -1169,7 +1169,7 @@ export function EasingEditor() {
         </div>
 
         {/* キャンバス */}
-        <div ref={containerRef} style={{ width: '100%', height: 200, position: 'relative', overflow: 'hidden' }}>
+        <div ref={containerRef} style={{ width: '100%', flex: 1, minHeight: 120, position: 'relative', overflow: 'hidden' }}>
           <canvas ref={canvasRef}
             style={{ width: '100%', height: '100%', display: 'block', cursor }}
             onMouseDown={handleMouseDown}

@@ -199,11 +199,14 @@ export default function App() {
   const movePanel = useUIStore((s) => s.movePanel);
   const draggingPanelId = useUIStore((s) => s.draggingPanelId);
   const setDraggingPanel = useUIStore((s) => s.setDraggingPanel);
+  const isEasingEditorOpen = useUIStore((s) => s.isEasingEditorOpen);
+  const easingPanelHeight = useUIStore((s) => s.easingPanelHeight);
+  const setEasingPanelHeight = useUIStore((s) => s.setEasingPanelHeight);
+  const toggleEasingEditor = useUIStore((s) => s.toggleEasingEditor);
 
-  // パネルIDからコンポーネントへのマップ
+  // パネルIDからコンポーネントへのマップ（イージングは独立パネルに移動）
   const panelComponents: Record<string, React.JSX.Element> = {
     properties: <Properties />,
-    easing: <EasingEditor />,
   };
 
   // パネルのドラッグ開始
@@ -225,9 +228,9 @@ export default function App() {
     setDraggingPanel(null);
   };
 
-  // 右パネルの表示順
-  const rightTop = panels.filter((p) => p.position === 'right-top');
-  const rightBottom = panels.filter((p) => p.position === 'right-bottom');
+  // 右パネルの表示順（イージングは独立パネルなので除外）
+  const rightTop = panels.filter((p) => p.position === 'right-top' && p.id !== 'easing');
+  const rightBottom = panels.filter((p) => p.position === 'right-bottom' && p.id !== 'easing');
 
   const renderPanel = (panel: typeof panels[0]) => (
     <div
@@ -254,6 +257,22 @@ export default function App() {
     </div>
   );
 
+  // EasingEditorパネルのリサイズハンドル
+  const handleEasingResize = (e: React.MouseEvent) => {
+    e.preventDefault();
+    const startY = e.clientY;
+    const startH = easingPanelHeight;
+    const onMove = (me: MouseEvent) => {
+      setEasingPanelHeight(startH - (me.clientY - startY));
+    };
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  };
+
   return (
     <div className="app-layout" onClick={() => hideContextMenu()}>
       <MenuBar />
@@ -266,6 +285,72 @@ export default function App() {
         {rightBottom.map(renderPanel)}
       </div>
       <Timeline />
+      {isEasingEditorOpen && (
+        <div
+          className="easing-panel-standalone"
+          style={{
+            height: easingPanelHeight,
+            borderTop: '1px solid var(--color-border)',
+            display: 'flex',
+            flexDirection: 'column',
+            flexShrink: 0,
+            gridColumn: '2 / -1',
+            background: 'var(--color-bg-panel)',
+          }}
+        >
+          {/* リサイズハンドル */}
+          <div
+            className="easing-resize-handle"
+            style={{
+              height: 4,
+              cursor: 'ns-resize',
+              background: 'transparent',
+              flexShrink: 0,
+              position: 'relative',
+            }}
+            onMouseDown={handleEasingResize}
+          >
+            <div style={{
+              position: 'absolute',
+              top: 1,
+              left: '50%',
+              transform: 'translateX(-50%)',
+              width: 32,
+              height: 2,
+              borderRadius: 1,
+              background: 'rgba(255, 255, 255, 0.15)',
+            }} />
+          </div>
+          {/* 閉じるボタン付きヘッダーラッパー */}
+          <div style={{ position: 'relative', flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <button
+              onClick={toggleEasingEditor}
+              style={{
+                position: 'absolute',
+                top: 6,
+                right: 36,
+                zIndex: 10,
+                width: 18,
+                height: 18,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                border: 'none',
+                background: 'transparent',
+                color: 'var(--color-text-dim)',
+                cursor: 'pointer',
+                borderRadius: 'var(--radius-xs)',
+                fontSize: 14,
+                lineHeight: 1,
+              }}
+              title="イージングエディターを閉じる"
+            >
+              ✕
+            </button>
+            <EasingEditor />
+          </div>
+        </div>
+      )}
       <ContextMenu />
     </div>
   );

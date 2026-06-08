@@ -39,6 +39,10 @@ interface UIState {
   panels: PanelLayout[];
   /** ドラッグ中のパネルID */
   draggingPanelId: string | null;
+  /** イージングエディターパネルの開閉 */
+  isEasingEditorOpen: boolean;
+  /** イージングエディターパネルの高さ（px） */
+  easingPanelHeight: number;
 
   setTool: (tool: ToolType) => void;
   toggleProperties: () => void;
@@ -50,6 +54,8 @@ interface UIState {
   toggleExpandLayer: (id: string) => void;
   movePanel: (panelId: string, newPosition: PanelPosition) => void;
   setDraggingPanel: (id: string | null) => void;
+  toggleEasingEditor: () => void;
+  setEasingPanelHeight: (h: number) => void;
 }
 
 export interface ContextMenuItem {
@@ -70,6 +76,8 @@ export const useUIStore = create<UIState>((set) => ({
   expandedLayerIds: [],
   panels: DEFAULT_PANELS,
   draggingPanelId: null,
+  isEasingEditorOpen: false,
+  easingPanelHeight: 260,
 
   setTool: (tool) => set({ activeTool: tool }),
   toggleProperties: () => set((s) => ({ showProperties: !s.showProperties })),
@@ -100,4 +108,10 @@ export const useUIStore = create<UIState>((set) => ({
     })),
 
   setDraggingPanel: (id) => set({ draggingPanelId: id }),
+
+  toggleEasingEditor: () =>
+    set((s) => ({ isEasingEditorOpen: !s.isEasingEditorOpen })),
+
+  setEasingPanelHeight: (h) =>
+    set({ easingPanelHeight: Math.max(180, Math.min(600, h)) }),
 }));
