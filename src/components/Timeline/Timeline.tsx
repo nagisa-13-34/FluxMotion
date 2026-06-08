@@ -412,14 +412,26 @@ export function Timeline() {
   };
 
   // 全トランスフォームプロパティ
-  const ALL_PROPS = ['anchorPoint', 'position', 'scale', 'rotation', 'opacity'];
+  const TRANSFORM_PROPS = ['anchorPoint', 'position', 'scale', 'rotation', 'opacity'];
+  const TEXT_PROPS = ['text.fontSize', 'text.fontWeight', 'text.lineHeight', 'text.letterSpacing'];
+  const SHAPE_PROPS = ['shape.fillOpacity', 'shape.strokeWidth', 'shape.cornerRadius'];
+
+  // レイヤータイプに応じたプロパティ一覧を取得
+  const getAllPropsForLayer = (layerId: string): string[] => {
+    const layer = layers.find(l => l.id === layerId);
+    if (!layer) return TRANSFORM_PROPS;
+    const props = [...TRANSFORM_PROPS];
+    if (layer.type === 'text' && layer.textStyle) props.push(...TEXT_PROPS);
+    if (layer.type === 'shape' && layer.shapeData) props.push(...SHAPE_PROPS);
+    return props;
+  };
 
   // 表示するプロパティ一覧を取得（Uキー対応）
   const getDisplayProps = (layerId: string): string[] => {
     if (showOnlyKeyframed) {
       return getAnimatedProps(layerId);
     }
-    return ALL_PROPS;
+    return getAllPropsForLayer(layerId);
   };
 
   // プロパティ名の日本語ラベル
@@ -427,8 +439,30 @@ export function Timeline() {
     const map: Record<string, string> = {
       position: '位置', scale: 'スケール', rotation: '回転',
       opacity: '不透明度', anchorPoint: 'アンカー',
+      'text.fontSize': 'サイズ', 'text.fontWeight': '太さ',
+      'text.lineHeight': '行間', 'text.letterSpacing': '文字間隔',
+      'shape.fillOpacity': '塗り不透明度', 'shape.strokeWidth': '線幅',
+      'shape.cornerRadius': '角丸',
     };
     return map[name] || name;
+  };
+
+  // プロパティ名から現在の値を取得
+  const getPropValue = (layer: typeof layers[0], propName: string): number | number[] => {
+    // テキスト系
+    if (propName.startsWith('text.') && layer.textStyle) {
+      const field = propName.replace('text.', '') as keyof typeof layer.textStyle;
+      return layer.textStyle[field] as number;
+    }
+    // シェイプ系
+    if (propName.startsWith('shape.') && layer.shapeData) {
+      const field = propName.replace('shape.', '') as keyof typeof layer.shapeData;
+      return (layer.shapeData[field] as number) ?? 0;
+    }
+    // トランスフォーム
+    const transform = layer.transform;
+    const val = transform[propName as keyof typeof transform];
+    return Array.isArray(val) ? [...val] : val as number;
   };
 
   const handleAddLayerWithSnapshot = (type: Parameters<typeof addLayer>[0]) => {
@@ -557,8 +591,7 @@ export function Timeline() {
                             removeKeyframe(layer.id, propName, currentFrame);
                           } else {
                             // 現在フレームにKFを追加
-                            const transform = layer.transform;
-                            const val = transform[propName as keyof typeof transform];
+                            const val = getPropValue(layer, propName);
                             const kf: Keyframe = {
                               time: currentFrame,
                               value: Array.isArray(val) ? [...val] : val as number,

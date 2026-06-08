@@ -77,10 +77,10 @@ export class Renderer {
           this.renderSolid(ctx, layer);
           break;
         case 'text':
-          this.renderText(ctx, layer);
+          this.renderText(ctx, layer, currentFrame, animations);
           break;
         case 'shape':
-          this.renderShape(ctx, layer);
+          this.renderShape(ctx, layer, currentFrame, animations);
           break;
         default:
           this.renderPlaceholder(ctx, layer);
@@ -175,33 +175,62 @@ export class Renderer {
     ctx.globalCompositeOperation = modeMap[layer.blendMode] || 'source-over';
   }
 
+  /** 数値プロパティのKF補間値を解決（汎用） */
+  private resolveNumericProp(
+    layerId: string,
+    propName: string,
+    defaultValue: number,
+    frame: number,
+    animations?: Record<string, Record<string, AnimatedProperty>>,
+  ): number {
+    if (!animations) return defaultValue;
+    const layerAnim = animations[layerId];
+    if (!layerAnim) return defaultValue;
+    const prop = layerAnim[propName];
+    if (!prop || prop.keyframes.length === 0) return defaultValue;
+    const val = interpolateValue(prop, frame);
+    return typeof val === 'number' ? val : defaultValue;
+  }
+
   /** ソリッドレイヤー描画 */
   private renderSolid(ctx: CanvasRenderingContext2D, layer: Layer) {
     ctx.fillStyle = layer.solidColor || '#6C5CE7';
     ctx.fillRect(-this.width / 2, -this.height / 2, this.width, this.height);
   }
 
-  /** テキストレイヤー描画 */
-  private renderText(ctx: CanvasRenderingContext2D, layer: Layer) {
+  /** テキストレイヤー描画（KF補間対応） */
+  private renderText(
+    ctx: CanvasRenderingContext2D,
+    layer: Layer,
+    frame: number,
+    animations?: Record<string, Record<string, AnimatedProperty>>,
+  ) {
     if (!layer.textStyle) return;
     const style = layer.textStyle;
-    ctx.font = `${style.fontWeight} ${style.fontSize}px "${style.fontFamily}", sans-serif`;
+
+    // KF補間値を取得（あればオーバーライド）
+    const fontSize = this.resolveNumericProp(layer.id, 'text.fontSize', style.fontSize, frame, animations);
+    const fontWeight = this.resolveNumericProp(layer.id, 'text.fontWeight', style.fontWeight, frame, animations);
+    const lineHeight = this.resolveNumericProp(layer.id, 'text.lineHeight', style.lineHeight, frame, animations);
+    const letterSpacing = this.resolveNumericProp(layer.id, 'text.letterSpacing', style.letterSpacing, frame, animations);
+
+    ctx.font = `${fontWeight} ${fontSize}px "${style.fontFamily}", sans-serif`;
     ctx.fillStyle = style.color;
     ctx.textAlign = style.textAlign;
     ctx.textBaseline = 'middle';
 
     // letterSpacing 対応（Canvas2D letterSpacingプロパティ / Chrome 99+）
-    if (style.letterSpacing && 'letterSpacing' in ctx) {
-      (ctx as any).letterSpacing = `${style.letterSpacing}px`;
+    if (letterSpacing && 'letterSpacing' in ctx) {
+      (ctx as any).letterSpacing = `${letterSpacing}px`;
     }
 
     const lines = style.text.split('\n');
-    const lineHeight = style.fontSize * style.lineHeight;
-    const totalHeight = lines.length * lineHeight;
-    const startY = -totalHeight / 2 + lineHeight / 2;
+    const lh = fontSize * lineHeight;
+    const totalHeight = lines.length * lh;
+    const startY = -totalHeight / 2 + lh / 2;
 
     lines.forEach((line, i) => {
-      ctx.fillText(line, 0, startY + i * lineHeight);
+      ctx.fillText(line, 0, startY + i * lh);
     });
 
     // letterSpacingリセット
@@ -210,26 +239,34 @@ export class Renderer {
     }
   }
 
-  /** シェイプレイヤー描画 */
-  private renderShape(ctx: CanvasRenderingContext2D, layer: Layer) {
+  /** シェイプレイヤー描画（KF補間対応） */
+  private renderShape(
+    ctx: CanvasRenderingContext2D,
+    layer: Layer,
+    frame: number,
+    animations?: Record<string, Record<string, AnimatedProperty>>,
+  ) {
     if (!layer.shapeData) return;
     const shape = layer.shapeData;
 
-    // fillOpacityを考慮した塗り色
-    const fillOpacity = (shape.fillOpacity ?? 100) / 100;
-    ctx.fillStyle = shape.fill;
-    ctx.globalAlpha *= fillOpacity;
+    // KF補間値を取得
+    const fillOpacity = this.resolveNumericProp(layer.id, 'shape.fillOpacity', shape.fillOpacity ?? 100, frame, animations);
+    const strokeWidth = this.resolveNumericProp(layer.id, 'shape.strokeWidth', shape.strokeWidth, frame, animations);
+    const cornerRadius = this.resolveNumericProp(layer.id, 'shape.cornerRadius', shape.cornerRadius ?? 0, frame, animations);
 
-    const hasStroke = shape.stroke !== 'transparent' && shape.strokeWidth > 0;
+    ctx.fillStyle = shape.fill;
+    ctx.globalAlpha *= fillOpacity / 100;
+
+    const hasStroke = shape.stroke !== 'transparent' && strokeWidth > 0;
     if (hasStroke) {
       ctx.strokeStyle = shape.stroke;
-      ctx.lineWidth = shape.strokeWidth;
+      ctx.lineWidth = strokeWidth;
       ctx.lineCap = shape.strokeLineCap ?? 'butt';
     }
 
     switch (shape.shapeType) {
       case 'rectangle':
-        this.renderRectangle(ctx, shape.cornerRadius || 0, hasStroke);
+        this.renderRectangle(ctx, cornerRadius, hasStroke);
         break;
       case 'ellipse':
         this.renderEllipse(ctx, hasStroke);

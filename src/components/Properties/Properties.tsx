@@ -93,6 +93,13 @@ export function Properties() {
     return defaultValue;
   };
 
+  /** 数値プロパティの表示値を取得（汎用） */
+  const getDisplayNumeric = (propKey: string, defaultValue: number): number => {
+    const resolved = getResolvedValue(propKey);
+    if (resolved !== undefined && typeof resolved === 'number') return resolved;
+    return defaultValue;
+  };
+
   /** 値変更時、KFが有効なプロパティなら自動でKF更新 */
   const handleValueChange = (propKey: string, value: number | [number, number]) => {
     if (!selectedLayer) return;
@@ -101,6 +108,79 @@ export function Properties() {
     if (isAnimated(propKey)) {
       handleAddKeyframe(propKey, value);
     }
+  };
+
+  /** テキストプロパティ変更（KF自動更新対応） */
+  const handleTextValueChange = (field: string, propKey: string, value: number) => {
+    if (!selectedLayer?.textStyle) return;
+    updateLayer(selectedLayer.id, {
+      textStyle: { ...selectedLayer.textStyle, [field]: value },
+    });
+    if (isAnimated(propKey)) {
+      handleAddKeyframe(propKey, value);
+    }
+  };
+
+  /** シェイププロパティ変更（KF自動更新対応） */
+  const handleShapeValueChange = (field: string, propKey: string, value: number) => {
+    if (!selectedLayer?.shapeData) return;
+    updateLayer(selectedLayer.id, {
+      shapeData: { ...selectedLayer.shapeData, [field]: value },
+    });
+    if (isAnimated(propKey)) {
+      handleAddKeyframe(propKey, value);
+    }
+  };
+
+  /** KFボタン付き数値プロパティ行 */
+  const renderKfNumericRow = (
+    propKey: string,
+    label: string,
+    value: number,
+    onChange: (v: number) => void,
+    opts?: { min?: number; max?: number; step?: number; suffix?: string },
+  ) => {
+    const hasKf = hasKeyframe(propKey);
+    const animated = isAnimated(propKey);
+    const display = getDisplayNumeric(propKey, value);
+    return (
+      <div key={propKey} className="prop-row">
+        <button
+          className={`prop-keyframe-btn${hasKf ? ' has-keyframe' : ''}${animated ? ' animated' : ''}`}
+          onClick={() => {
+            if (hasKf) {
+              removeKeyframe(selectedLayer!.id, propKey, currentFrame);
+            } else {
+              handleAddKeyframe(propKey, display);
+            }
+          }}
+          title={hasKf ? 'キーフレーム削除' : 'キーフレーム追加'}
+        >
+          <svg viewBox="0 0 12 12" width="10" height="10">
+            <rect x="3" y="3" width="6" height="6" transform="rotate(45 6 6)"
+              fill={hasKf ? 'var(--color-keyframe)' : 'none'}
+              stroke={animated ? 'var(--color-keyframe)' : 'currentColor'} strokeWidth="1.5"
+            />
+          </svg>
+        </button>
+        <span className={`prop-label${animated ? ' animated' : ''}`}>{label}</span>
+        <div className="prop-value">
+          <input
+            type="number"
+            value={Math.round(display * 100) / 100}
+            onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
+            min={opts?.min}
+            max={opts?.max}
+            step={opts?.step ?? 1}
+          />
+          {opts?.suffix && (
+            <span style={{ fontSize: 'var(--font-size-xxs)', color: 'var(--color-text-dim)', alignSelf: 'center' }}>
+              {opts.suffix}
+            </span>
+          )}
+        </div>
+      </div>
+    );
   };
 
   if (!selectedLayer) {
@@ -396,52 +476,19 @@ export function Properties() {
                   </div>
                 </div>
                 {/* フォントサイズ */}
-                <div className="prop-row">
-                  <div />
-                  <span className="prop-label">サイズ</span>
-                  <div className="prop-value">
-                    <input
-                      type="number"
-                      value={selectedLayer.textStyle.fontSize}
-                      onChange={(e) =>
-                        updateLayer(selectedLayer.id, {
-                          textStyle: { ...selectedLayer.textStyle!, fontSize: parseInt(e.target.value) || 12 },
-                        })
-                      }
-                      min={1}
-                      step={1}
-                    />
-                    <span style={{ fontSize: 'var(--font-size-xxs)', color: 'var(--color-text-dim)', alignSelf: 'center' }}>
-                      px
-                    </span>
-                  </div>
-                </div>
+                {renderKfNumericRow(
+                  'text.fontSize', 'サイズ',
+                  selectedLayer.textStyle.fontSize,
+                  (v) => handleTextValueChange('fontSize', 'text.fontSize', v),
+                  { min: 1, step: 1, suffix: 'px' },
+                )}
                 {/* フォントウェイト */}
-                <div className="prop-row">
-                  <div />
-                  <span className="prop-label">太さ</span>
-                  <div className="prop-value">
-                    <select
-                      value={selectedLayer.textStyle.fontWeight}
-                      onChange={(e) =>
-                        updateLayer(selectedLayer.id, {
-                          textStyle: { ...selectedLayer.textStyle!, fontWeight: parseInt(e.target.value) },
-                        })
-                      }
-                      style={selectStyle}
-                    >
-                      <option value={100}>Thin (100)</option>
-                      <option value={200}>ExtraLight (200)</option>
-                      <option value={300}>Light (300)</option>
-                      <option value={400}>Regular (400)</option>
-                      <option value={500}>Medium (500)</option>
-                      <option value={600}>SemiBold (600)</option>
-                      <option value={700}>Bold (700)</option>
-                      <option value={800}>ExtraBold (800)</option>
-                      <option value={900}>Black (900)</option>
-                    </select>
-                  </div>
-                </div>
+                {renderKfNumericRow(
+                  'text.fontWeight', '太さ',
+                  selectedLayer.textStyle.fontWeight,
+                  (v) => handleTextValueChange('fontWeight', 'text.fontWeight', v),
+                  { min: 100, max: 900, step: 100 },
+                )}
                 {/* 文字色 */}
                 <div className="prop-row">
                   <div />
@@ -463,44 +510,19 @@ export function Properties() {
                   </div>
                 </div>
                 {/* 行間 */}
-                <div className="prop-row">
-                  <div />
-                  <span className="prop-label">行間</span>
-                  <div className="prop-value">
-                    <input
-                      type="number"
-                      value={selectedLayer.textStyle.lineHeight}
-                      onChange={(e) =>
-                        updateLayer(selectedLayer.id, {
-                          textStyle: { ...selectedLayer.textStyle!, lineHeight: parseFloat(e.target.value) || 1 },
-                        })
-                      }
-                      min={0.5}
-                      max={5}
-                      step={0.1}
-                    />
-                  </div>
-                </div>
+                {renderKfNumericRow(
+                  'text.lineHeight', '行間',
+                  selectedLayer.textStyle.lineHeight,
+                  (v) => handleTextValueChange('lineHeight', 'text.lineHeight', v),
+                  { min: 0.5, max: 5, step: 0.1 },
+                )}
                 {/* 文字間隔 */}
-                <div className="prop-row">
-                  <div />
-                  <span className="prop-label">文字間隔</span>
-                  <div className="prop-value">
-                    <input
-                      type="number"
-                      value={selectedLayer.textStyle.letterSpacing}
-                      onChange={(e) =>
-                        updateLayer(selectedLayer.id, {
-                          textStyle: { ...selectedLayer.textStyle!, letterSpacing: parseFloat(e.target.value) || 0 },
-                        })
-                      }
-                      step={0.5}
-                    />
-                    <span style={{ fontSize: 'var(--font-size-xxs)', color: 'var(--color-text-dim)', alignSelf: 'center' }}>
-                      px
-                    </span>
-                  </div>
-                </div>
+                {renderKfNumericRow(
+                  'text.letterSpacing', '文字間隔',
+                  selectedLayer.textStyle.letterSpacing,
+                  (v) => handleTextValueChange('letterSpacing', 'text.letterSpacing', v),
+                  { step: 0.5, suffix: 'px' },
+                )}
                 {/* テキスト揃え */}
                 <div className="prop-row">
                   <div />
@@ -620,25 +642,12 @@ export function Properties() {
                   </div>
                 </div>
                 {/* 塗り不透明度 */}
-                <div className="prop-row">
-                  <div />
-                  <span className="prop-label">塗り不透明度</span>
-                  <div className="prop-value">
-                    <input
-                      type="number"
-                      value={selectedLayer.shapeData.fillOpacity ?? 100}
-                      onChange={(e) =>
-                        updateLayer(selectedLayer.id, {
-                          shapeData: { ...selectedLayer.shapeData!, fillOpacity: parseFloat(e.target.value) || 100 },
-                        })
-                      }
-                      min={0}
-                      max={100}
-                      step={1}
-                    />
-                    <span style={{ fontSize: 'var(--font-size-xxs)', color: 'var(--color-text-dim)', alignSelf: 'center' }}>%</span>
-                  </div>
-                </div>
+                {renderKfNumericRow(
+                  'shape.fillOpacity', '塗り不透明度',
+                  selectedLayer.shapeData.fillOpacity ?? 100,
+                  (v) => handleShapeValueChange('fillOpacity', 'shape.fillOpacity', v),
+                  { min: 0, max: 100, step: 1, suffix: '%' },
+                )}
                 {/* 線色 */}
                 <div className="prop-row">
                   <div />
@@ -660,24 +669,12 @@ export function Properties() {
                   </div>
                 </div>
                 {/* 線幅 */}
-                <div className="prop-row">
-                  <div />
-                  <span className="prop-label">線幅</span>
-                  <div className="prop-value">
-                    <input
-                      type="number"
-                      value={selectedLayer.shapeData.strokeWidth}
-                      onChange={(e) =>
-                        updateLayer(selectedLayer.id, {
-                          shapeData: { ...selectedLayer.shapeData!, strokeWidth: parseFloat(e.target.value) || 0 },
-                        })
-                      }
-                      min={0}
-                      step={0.5}
-                    />
-                    <span style={{ fontSize: 'var(--font-size-xxs)', color: 'var(--color-text-dim)', alignSelf: 'center' }}>px</span>
-                  </div>
-                </div>
+                {renderKfNumericRow(
+                  'shape.strokeWidth', '線幅',
+                  selectedLayer.shapeData.strokeWidth,
+                  (v) => handleShapeValueChange('strokeWidth', 'shape.strokeWidth', v),
+                  { min: 0, step: 0.5, suffix: 'px' },
+                )}
                 {/* 線端 */}
                 <div className="prop-row">
                   <div />
@@ -699,26 +696,14 @@ export function Properties() {
                   </div>
                 </div>
                 {/* 角丸（矩形のみ） */}
-                {selectedLayer.shapeData.shapeType === 'rectangle' && (
-                  <div className="prop-row">
-                    <div />
-                    <span className="prop-label">角丸</span>
-                    <div className="prop-value">
-                      <input
-                        type="number"
-                        value={selectedLayer.shapeData.cornerRadius ?? 0}
-                        onChange={(e) =>
-                          updateLayer(selectedLayer.id, {
-                            shapeData: { ...selectedLayer.shapeData!, cornerRadius: parseFloat(e.target.value) || 0 },
-                          })
-                        }
-                        min={0}
-                        step={1}
-                      />
-                      <span style={{ fontSize: 'var(--font-size-xxs)', color: 'var(--color-text-dim)', alignSelf: 'center' }}>px</span>
-                    </div>
-                  </div>
-                )}
+                {selectedLayer.shapeData.shapeType === 'rectangle' &&
+                  renderKfNumericRow(
+                    'shape.cornerRadius', '角丸',
+                    selectedLayer.shapeData.cornerRadius ?? 0,
+                    (v) => handleShapeValueChange('cornerRadius', 'shape.cornerRadius', v),
+                    { min: 0, step: 1, suffix: 'px' },
+                  )
+                }
               </>
             )}
           </div>
