@@ -244,7 +244,13 @@ export function Preview({ onRenderReady }: PreviewProps) {
             const [rawW, rawH] = getLayerSize(layer);
             const w = rawW * sx * scale;
             const h = rawH * sy * scale;
-            const x = position[0] * scale - w / 2;
+            // テキスト揃えに応じたX位置オフセット
+            let xOffset = -w / 2; // center（デフォルト）
+            if (layer.type === 'text' && layer.textStyle) {
+              if (layer.textStyle.textAlign === 'left') xOffset = 0;
+              else if (layer.textStyle.textAlign === 'right') xOffset = -w;
+            }
+            const x = position[0] * scale + xOffset;
             const y = position[1] * scale - h / 2;
             const isSelected = selectedLayerIds.includes(layer.id);
             const isEditing = editingLayerId === layer.id;
@@ -336,7 +342,9 @@ export function Preview({ onRenderReady }: PreviewProps) {
                   position: 'absolute',
                   left: position[0] * scale,
                   top: position[1] * scale - (rawH * sy * scale) / 2,
-                  transform: 'translateX(-50%)',
+                  transform: layer.textStyle.textAlign === 'left' ? 'none'
+                    : layer.textStyle.textAlign === 'right' ? 'translateX(-100%)'
+                    : 'translateX(-50%)',
                   width: 'auto',
                   minWidth: Math.max(rawW * sx * scale + 20, 80),
                   minHeight: rawH * sy * scale + 10,

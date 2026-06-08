@@ -207,7 +207,9 @@ export function Properties() {
               className={`prop-kf-nav${prevTime !== null ? '' : ' disabled'}`}
               onClick={() => prevTime !== null && setCurrentFrame(prevTime)}
               title="前のキーフレーム"
-            >◁</button>
+            >
+              <svg viewBox="0 0 8 10" width="6" height="8"><path d="M6 1L2 5L6 9" fill="none" stroke="currentColor" strokeWidth="1.5" /></svg>
+            </button>
           )}
           <button
             className={`prop-keyframe-btn${hasKf ? ' has-keyframe' : ''}${animated ? ' animated' : ''}`}
@@ -234,7 +236,9 @@ export function Properties() {
               className={`prop-kf-nav${nextTime !== null ? '' : ' disabled'}`}
               onClick={() => nextTime !== null && setCurrentFrame(nextTime)}
               title="次のキーフレーム"
-            >▷</button>
+            >
+              <svg viewBox="0 0 8 10" width="6" height="8"><path d="M2 1L6 5L2 9" fill="none" stroke="currentColor" strokeWidth="1.5" /></svg>
+            </button>
           )}
         </div>
         <span
@@ -247,6 +251,11 @@ export function Properties() {
             type="number"
             value={Math.round(display * 100) / 100}
             onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
+            onMouseDown={(e) => {
+              if (document.activeElement !== e.currentTarget) {
+                handleDragStart(e, display, onChange, opts);
+              }
+            }}
             min={opts?.min}
             max={opts?.max}
             step={opts?.step ?? 1}
@@ -322,7 +331,9 @@ export function Properties() {
                   <div className="prop-kf-controls">
                     {animated && (
                       <button className={`prop-kf-nav${prevTime !== null ? '' : ' disabled'}`}
-                        onClick={() => prevTime !== null && setCurrentFrame(prevTime)} title="前のキーフレーム">◁</button>
+                        onClick={() => prevTime !== null && setCurrentFrame(prevTime)} title="前のキーフレーム">
+                        <svg viewBox="0 0 8 10" width="6" height="8"><path d="M6 1L2 5L6 9" fill="none" stroke="currentColor" strokeWidth="1.5" /></svg>
+                      </button>
                     )}
                     <button
                       className={`prop-keyframe-btn${hasKf ? ' has-keyframe' : ''}${animated ? ' animated' : ''}`}
@@ -346,7 +357,9 @@ export function Properties() {
                     </button>
                     {animated && (
                       <button className={`prop-kf-nav${nextTime !== null ? '' : ' disabled'}`}
-                        onClick={() => nextTime !== null && setCurrentFrame(nextTime)} title="次のキーフレーム">▷</button>
+                        onClick={() => nextTime !== null && setCurrentFrame(nextTime)} title="次のキーフレーム">
+                        <svg viewBox="0 0 8 10" width="6" height="8"><path d="M2 1L6 5L2 9" fill="none" stroke="currentColor" strokeWidth="1.5" /></svg>
+                      </button>
                     )}
                   </div>
                 );

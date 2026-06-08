@@ -559,22 +559,23 @@
 
 /* KFナビ矢印 */
 .prop-kf-nav {
-  width: 10px;
-  height: 14px;
+  width: 12px;
+  height: 16px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: var(--color-text-dim);
-  font-size: 7px;
+  color: var(--color-text-secondary);
+  font-size: 9px;
   padding: 0;
   transition: color 0.15s;
+  line-height: 1;
 }
 .prop-kf-nav:hover {
   color: var(--color-text-ae-value);
 }
 .prop-kf-nav.disabled {
-  opacity: 0.2;
+  opacity: 0.15;
   cursor: default;
 }
 
@@ -635,6 +636,10 @@
   font-family: var(--font-family);
   text-align: right;
   height: 18px;
+  cursor: ew-resize;
+}
+.prop-value input:focus {
+  cursor: text;
 }
 .prop-value input:hover {
   background: var(--color-bg-input);
