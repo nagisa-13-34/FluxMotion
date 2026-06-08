@@ -578,8 +578,13 @@ export function Properties() {
                     };
 
                     const handleDirChange = (dirKey: DirKey, kfKey: string, v: number) => {
-                      setDirScaleValues(prev => ({ ...prev, [dirKey]: v }));
-                      // KFが有効ならKFも更新
+                      const newDir = { ...dirScaleValues, [dirKey]: v };
+                      setDirScaleValues(newDir);
+                      // 親scaleも更新（平均値で反映）
+                      const avgX = (newDir.left + newDir.right) / 2;
+                      const avgY = (newDir.top + newDir.bottom) / 2;
+                      updateTransform(selectedLayer.id, 'scale', [avgX, avgY]);
+                      // 方向別KFも更新（レンダラーのdirectionalScale用）
                       if (isAnimated(kfKey)) {
                         handleAddKeyframe(kfKey, v);
                       }
