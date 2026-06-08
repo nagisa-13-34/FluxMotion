@@ -251,11 +251,19 @@ export function Properties() {
             type="number"
             value={Math.round(display * 100) / 100}
             onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
+            readOnly
             onMouseDown={(e) => {
-              if (document.activeElement !== e.currentTarget) {
-                handleDragStart(e, display, onChange, opts);
-              }
+              if (!(e.currentTarget as HTMLInputElement).readOnly) return;
+              handleDragStart(e, display, onChange, opts);
             }}
+            onDoubleClick={(e) => {
+              const el = e.currentTarget as HTMLInputElement;
+              el.readOnly = false;
+              el.focus();
+              el.select();
+            }}
+            onBlur={(e) => { (e.currentTarget as HTMLInputElement).readOnly = true; }}
+            onKeyDown={(e) => { if (e.key === 'Enter') (e.currentTarget as HTMLInputElement).blur(); }}
             min={opts?.min}
             max={opts?.max}
             step={opts?.step ?? 1}
@@ -378,9 +386,19 @@ export function Properties() {
                       <div className="prop-value">
                         <input type="number" value={Math.round(displayArr[0] * 10) / 10}
                           onChange={(e) => handleValueChange(prop.key, [parseFloat(e.target.value) || 0, displayArr[1]])}
+                          readOnly
+                          onMouseDown={(e) => { if (!(e.currentTarget as HTMLInputElement).readOnly) return; handleDragStart(e, displayArr[0], (v) => handleValueChange(prop.key, [v, displayArr[1]]), { step: prop.key === 'scale' ? 1 : 0.5 }); }}
+                          onDoubleClick={(e) => { const el = e.currentTarget; el.readOnly = false; el.focus(); el.select(); }}
+                          onBlur={(e) => { e.currentTarget.readOnly = true; }}
+                          onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
                           step={prop.key === 'scale' ? 1 : 0.5} style={{ width: '50%' }} />
                         <input type="number" value={Math.round(displayArr[1] * 10) / 10}
                           onChange={(e) => handleValueChange(prop.key, [displayArr[0], parseFloat(e.target.value) || 0])}
+                          readOnly
+                          onMouseDown={(e) => { if (!(e.currentTarget as HTMLInputElement).readOnly) return; handleDragStart(e, displayArr[1], (v) => handleValueChange(prop.key, [displayArr[0], v]), { step: prop.key === 'scale' ? 1 : 0.5 }); }}
+                          onDoubleClick={(e) => { const el = e.currentTarget; el.readOnly = false; el.focus(); el.select(); }}
+                          onBlur={(e) => { e.currentTarget.readOnly = true; }}
+                          onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
                           step={prop.key === 'scale' ? 1 : 0.5} style={{ width: '50%' }} />
                       </div>
                     </div>
@@ -400,6 +418,11 @@ export function Properties() {
                     <div className="prop-value">
                       <input type="number" value={Math.round(displayNum * 10) / 10}
                         onChange={(e) => handleValueChange(prop.key, parseFloat(e.target.value) || 0)}
+                        readOnly
+                        onMouseDown={(e) => { if (!(e.currentTarget as HTMLInputElement).readOnly) return; handleDragStart(e, displayNum, (v) => handleValueChange(prop.key, v), { step: prop.key === 'rotation' ? 1 : 0.5, min: prop.min, max: prop.max }); }}
+                        onDoubleClick={(e) => { const el = e.currentTarget; el.readOnly = false; el.focus(); el.select(); }}
+                        onBlur={(e) => { e.currentTarget.readOnly = true; }}
+                        onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
                         min={prop.min} max={prop.max} step={prop.key === 'rotation' ? 1 : 0.5} />
                       {prop.suffix && (
                         <span style={{ fontSize: 'var(--font-size-xxs)', color: 'var(--color-text-dim)', alignSelf: 'center' }}>{prop.suffix}</span>

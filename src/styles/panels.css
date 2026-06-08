@@ -638,7 +638,7 @@
   height: 18px;
   cursor: ew-resize;
 }
-.prop-value input:focus {
+.prop-value input:not(:read-only) {
   cursor: text;
 }
 .prop-value input:hover {
