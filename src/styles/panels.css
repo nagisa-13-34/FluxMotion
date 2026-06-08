@@ -441,6 +441,8 @@
   color: var(--color-text-secondary);
   min-height: 22px;
   flex-shrink: 0;
+  white-space: nowrap;
+  overflow: hidden;
 }
 .properties .panel-header-icon {
   width: 12px;
@@ -502,6 +504,8 @@
   border-bottom: 1px solid var(--color-border);
   min-height: 20px;
   user-select: none;
+  white-space: nowrap;
+  overflow: hidden;
 }
 .prop-group-header:hover {
   background: var(--color-bg-hover);
@@ -537,6 +541,41 @@
   gap: 2px;
   padding: 1px 8px 1px 20px;
   min-height: 20px;
+  white-space: nowrap;
+}
+
+/* KFナビ付き行: 左カラムを広く */
+.prop-row-kf {
+  grid-template-columns: auto 70px 1fr;
+}
+
+/* KFコントロール（◁ ⏱ ▷） */
+.prop-kf-controls {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  flex-shrink: 0;
+}
+
+/* KFナビ矢印 */
+.prop-kf-nav {
+  width: 10px;
+  height: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--color-text-dim);
+  font-size: 7px;
+  padding: 0;
+  transition: color 0.15s;
+}
+.prop-kf-nav:hover {
+  color: var(--color-text-ae-value);
+}
+.prop-kf-nav.disabled {
+  opacity: 0.2;
+  cursor: default;
 }
 
 /* ---- ストップウォッチ (AE Style) ---- */
@@ -568,6 +607,10 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  user-select: none;
+}
+.prop-label.scrub {
+  cursor: ew-resize;
 }
 .prop-label.animated {
   color: var(--color-text-ae-value);

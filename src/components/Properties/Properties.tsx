@@ -1,5 +1,5 @@
 import type React from 'react';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { useLayerStore } from '../../stores/layerStore';
 import { useTimelineStore } from '../../stores/timelineStore';
 import type { Keyframe } from '../../types/keyframe';
@@ -78,6 +78,60 @@ export function Properties() {
     return (propAnim?.keyframes.length ?? 0) > 0;
   };
 
+  /** 前のKF時間を取得 */
+  const getPrevKfTime = (propName: string): number | null => {
+    if (!selectedLayer) return null;
+    const kfs = animations[selectedLayer.id]?.[propName]?.keyframes;
+    if (!kfs) return null;
+    const prev = kfs.filter(kf => kf.time < currentFrame).sort((a, b) => b.time - a.time);
+    return prev.length > 0 ? prev[0].time : null;
+  };
+
+  /** 次のKF時間を取得 */
+  const getNextKfTime = (propName: string): number | null => {
+    if (!selectedLayer) return null;
+    const kfs = animations[selectedLayer.id]?.[propName]?.keyframes;
+    if (!kfs) return null;
+    const next = kfs.filter(kf => kf.time > currentFrame).sort((a, b) => a.time - b.time);
+    return next.length > 0 ? next[0].time : null;
+  };
+
+  const setCurrentFrame = useTimelineStore.getState().setCurrentFrame;
+
+  /** ドラッグスクラブ用ref */
+  const dragRef = useRef<{ startX: number; startVal: number; step: number; min?: number; max?: number } | null>(null);
+
+  /** ラベルをドラッグしてスクラブ */
+  const handleDragStart = (
+    e: React.MouseEvent,
+    currentVal: number,
+    onChange: (v: number) => void,
+    opts?: { step?: number; min?: number; max?: number },
+  ) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const step = opts?.step ?? 1;
+    dragRef.current = { startX, startVal: currentVal, step, min: opts?.min, max: opts?.max };
+
+    const onMove = (ev: MouseEvent) => {
+      if (!dragRef.current) return;
+      const dx = ev.clientX - dragRef.current.startX;
+      let newVal = dragRef.current.startVal + dx * dragRef.current.step * 0.5;
+      if (dragRef.current.min !== undefined) newVal = Math.max(dragRef.current.min, newVal);
+      if (dragRef.current.max !== undefined) newVal = Math.min(dragRef.current.max, newVal);
+      // stepで丸める
+      newVal = Math.round(newVal / step) * step;
+      onChange(newVal);
+    };
+    const onUp = () => {
+      dragRef.current = null;
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  };
+
   /** キーフレーム補間を考慮した値を返す */
   const getResolvedValue = (propName: string): number | number[] | undefined => {
     if (!selectedLayer) return undefined;
@@ -132,7 +186,7 @@ export function Properties() {
     }
   };
 
-  /** KFボタン付き数値プロパティ行 */
+  /** KFボタン付き数値プロパティ行（ナビ矢印+ドラッグスクラブ対応） */
   const renderKfNumericRow = (
     propKey: string,
     label: string,
@@ -143,29 +197,51 @@ export function Properties() {
     const hasKf = hasKeyframe(propKey);
     const animated = isAnimated(propKey);
     const display = getDisplayNumeric(propKey, value);
+    const prevTime = animated ? getPrevKfTime(propKey) : null;
+    const nextTime = animated ? getNextKfTime(propKey) : null;
     return (
-      <div key={propKey} className="prop-row">
-        <button
-          className={`prop-keyframe-btn${hasKf ? ' has-keyframe' : ''}${animated ? ' animated' : ''}`}
-          onClick={() => {
-            if (hasKf) {
-              removeKeyframe(selectedLayer!.id, propKey, currentFrame);
-            } else {
-              handleAddKeyframe(propKey, display);
-            }
-          }}
-          title={hasKf ? 'キーフレーム削除' : 'キーフレーム追加'}
-        >
-          <svg viewBox="0 0 14 14" width="12" height="12">
-            <circle cx="7" cy="8" r="4.5"
-              fill={hasKf ? 'var(--color-keyframe)' : 'none'}
-              stroke={animated ? 'var(--color-keyframe)' : 'currentColor'} strokeWidth="1.2"
-            />
-            <line x1="7" y1="8" x2="7" y2="5.5" stroke={hasKf ? '#fff' : 'currentColor'} strokeWidth="1" />
-            <line x1="5" y1="2.5" x2="9" y2="2.5" stroke={animated ? 'var(--color-keyframe)' : 'currentColor'} strokeWidth="1" />
-          </svg>
-        </button>
-        <span className={`prop-label${animated ? ' animated' : ''}`}>{label}</span>
+      <div key={propKey} className="prop-row prop-row-kf">
+        <div className="prop-kf-controls">
+          {animated && (
+            <button
+              className={`prop-kf-nav${prevTime !== null ? '' : ' disabled'}`}
+              onClick={() => prevTime !== null && setCurrentFrame(prevTime)}
+              title="前のキーフレーム"
+            >◁</button>
+          )}
+          <button
+            className={`prop-keyframe-btn${hasKf ? ' has-keyframe' : ''}${animated ? ' animated' : ''}`}
+            onClick={() => {
+              if (hasKf) {
+                removeKeyframe(selectedLayer!.id, propKey, currentFrame);
+              } else {
+                handleAddKeyframe(propKey, display);
+              }
+            }}
+            title={hasKf ? 'キーフレーム削除' : 'キーフレーム追加'}
+          >
+            <svg viewBox="0 0 14 14" width="12" height="12">
+              <circle cx="7" cy="8" r="4.5"
+                fill={hasKf ? 'var(--color-keyframe)' : 'none'}
+                stroke={animated ? 'var(--color-keyframe)' : 'currentColor'} strokeWidth="1.2"
+              />
+              <line x1="7" y1="8" x2="7" y2="5.5" stroke={hasKf ? '#fff' : 'currentColor'} strokeWidth="1" />
+              <line x1="5" y1="2.5" x2="9" y2="2.5" stroke={animated ? 'var(--color-keyframe)' : 'currentColor'} strokeWidth="1" />
+            </svg>
+          </button>
+          {animated && (
+            <button
+              className={`prop-kf-nav${nextTime !== null ? '' : ' disabled'}`}
+              onClick={() => nextTime !== null && setCurrentFrame(nextTime)}
+              title="次のキーフレーム"
+            >▷</button>
+          )}
+        </div>
+        <span
+          className={`prop-label scrub${animated ? ' animated' : ''}`}
+          onMouseDown={(e) => handleDragStart(e, display, onChange, opts)}
+          title="ドラッグで値を変更"
+        >{label}</span>
         <div className="prop-value">
           <input
             type="number"
@@ -213,66 +289,6 @@ export function Properties() {
         <span style={{ marginLeft: 'auto', cursor: 'pointer', fontSize: 'var(--font-size-sm)', opacity: 0.5 }}>≡</span>
       </div>
       <div className="panel-content">
-        {/* レイヤー基本情報 */}
-        <div className="prop-group">
-          <div
-            className="prop-group-header"
-            onClick={() => toggleGroup('layer')}
-          >
-            <svg className={`chevron${openGroups.layer ? ' open' : ''}`} viewBox="0 0 24 24" fill="currentColor">
-              <path d="M10 6l6 6-6 6V6z" />
-            </svg>
-            レイヤー
-          </div>
-          {openGroups.layer && (
-            <>
-              <div className="prop-row">
-                <div />
-                <span className="prop-label">名前</span>
-                <div className="prop-value">
-                  <input
-                    type="text"
-                    value={selectedLayer.name}
-                    onChange={(e) => updateLayer(selectedLayer.id, { name: e.target.value })}
-                    style={{ width: '100%' }}
-                  />
-                </div>
-              </div>
-              <div className="prop-row">
-                <div />
-                <span className="prop-label">ブレンド</span>
-                <div className="prop-value">
-                  <select
-                    value={selectedLayer.blendMode}
-                    onChange={(e) =>
-                      useLayerStore.getState().setBlendMode(
-                        selectedLayer.id,
-                        e.target.value as any
-                      )
-                    }
-                    style={{
-                      background: 'var(--color-bg-input)',
-                      border: '1px solid var(--color-border)',
-                      borderRadius: 'var(--radius-sm)',
-                      padding: '2px 4px',
-                      fontSize: 'var(--font-size-xs)',
-                      color: 'var(--color-text-primary)',
-                      width: '100%',
-                    }}
-                  >
-                    <option value="normal">通常</option>
-                    <option value="multiply">乗算</option>
-                    <option value="screen">スクリーン</option>
-                    <option value="overlay">オーバーレイ</option>
-                    <option value="add">加算</option>
-                    <option value="darken">比較（暗）</option>
-                    <option value="lighten">比較（明）</option>
-                  </select>
-                </div>
-              </div>
-            </>
-          )}
-        </div>
 
         {/* トランスフォーム */}
         <div className="prop-group">
@@ -299,60 +315,60 @@ export function Properties() {
                 const rawValue = selectedLayer.transform[prop.key as keyof typeof selectedLayer.transform];
                 const hasKf = hasKeyframe(prop.key);
                 const animated = isAnimated(prop.key);
+                const prevTime = animated ? getPrevKfTime(prop.key) : null;
+                const nextTime = animated ? getNextKfTime(prop.key) : null;
+
+                const kfControls = (
+                  <div className="prop-kf-controls">
+                    {animated && (
+                      <button className={`prop-kf-nav${prevTime !== null ? '' : ' disabled'}`}
+                        onClick={() => prevTime !== null && setCurrentFrame(prevTime)} title="前のキーフレーム">◁</button>
+                    )}
+                    <button
+                      className={`prop-keyframe-btn${hasKf ? ' has-keyframe' : ''}${animated ? ' animated' : ''}`}
+                      onClick={() => {
+                        if (hasKf) { removeKeyframe(selectedLayer.id, prop.key, currentFrame); }
+                        else {
+                          const v = prop.type === 'xy'
+                            ? (getDisplayValue(prop.key, rawValue as [number, number]) as [number, number])
+                            : (getDisplayValue(prop.key, rawValue as number) as number);
+                          handleAddKeyframe(prop.key, v);
+                        }
+                      }}
+                      title={hasKf ? 'キーフレーム削除' : 'キーフレーム追加'}
+                    >
+                      <svg viewBox="0 0 14 14" width="12" height="12">
+                        <circle cx="7" cy="8" r="4.5" fill={hasKf ? 'var(--color-keyframe)' : 'none'}
+                          stroke={animated ? 'var(--color-keyframe)' : 'currentColor'} strokeWidth="1.2" />
+                        <line x1="7" y1="8" x2="7" y2="5.5" stroke={hasKf ? '#fff' : 'currentColor'} strokeWidth="1" />
+                        <line x1="5" y1="2.5" x2="9" y2="2.5" stroke={animated ? 'var(--color-keyframe)' : 'currentColor'} strokeWidth="1" />
+                      </svg>
+                    </button>
+                    {animated && (
+                      <button className={`prop-kf-nav${nextTime !== null ? '' : ' disabled'}`}
+                        onClick={() => nextTime !== null && setCurrentFrame(nextTime)} title="次のキーフレーム">▷</button>
+                    )}
+                  </div>
+                );
 
                 if (prop.type === 'xy') {
                   const defaultArr = rawValue as [number, number];
                   const displayArr = getDisplayValue(prop.key, defaultArr) as [number, number];
                   return (
-                    <div key={prop.key} className="prop-row">
-                      <button
-                        className={`prop-keyframe-btn${hasKf ? ' has-keyframe' : ''}${animated ? ' animated' : ''}`}
-                        onClick={() => {
-                          if (hasKf) {
-                            removeKeyframe(selectedLayer.id, prop.key, currentFrame);
-                          } else {
-                            handleAddKeyframe(prop.key, displayArr);
-                          }
-                        }}
-                        title={hasKf ? 'キーフレーム削除' : 'キーフレーム追加'}
-                      >
-                        <svg viewBox="0 0 14 14" width="12" height="12">
-                          <circle cx="7" cy="8" r="4.5"
-                            fill={hasKf ? 'var(--color-keyframe)' : 'none'}
-                            stroke={animated ? 'var(--color-keyframe)' : 'currentColor'} strokeWidth="1.2"
-                          />
-                          <line x1="7" y1="8" x2="7" y2="5.5" stroke={hasKf ? '#fff' : 'currentColor'} strokeWidth="1" />
-                          <line x1="5" y1="2.5" x2="9" y2="2.5" stroke={animated ? 'var(--color-keyframe)' : 'currentColor'} strokeWidth="1" />
-                        </svg>
-                      </button>
-                      <span className={`prop-label${animated ? ' animated' : ''}`}>{prop.label}</span>
+                    <div key={prop.key} className="prop-row prop-row-kf">
+                      {kfControls}
+                      <span
+                        className={`prop-label scrub${animated ? ' animated' : ''}`}
+                        onMouseDown={(e) => handleDragStart(e, displayArr[0], (v) => handleValueChange(prop.key, [v, displayArr[1]]), { step: prop.key === 'scale' ? 1 : 0.5 })}
+                        title="ドラッグで値を変更"
+                      >{prop.label}</span>
                       <div className="prop-value">
-                        <input
-                          type="number"
-                          value={Math.round(displayArr[0] * 10) / 10}
-                          onChange={(e) =>
-                            handleValueChange(prop.key, [
-                              parseFloat(e.target.value) || 0,
-                              displayArr[1],
-                            ])
-                          }
-                          step={prop.key === 'scale' ? 1 : 0.5}
-                          title={prop.key === 'scale' ? 'X (幅)' : 'X'}
-                          style={{ width: '50%' }}
-                        />
-                        <input
-                          type="number"
-                          value={Math.round(displayArr[1] * 10) / 10}
-                          onChange={(e) =>
-                            handleValueChange(prop.key, [
-                              displayArr[0],
-                              parseFloat(e.target.value) || 0,
-                            ])
-                          }
-                          step={prop.key === 'scale' ? 1 : 0.5}
-                          title={prop.key === 'scale' ? 'Y (高さ)' : 'Y'}
-                          style={{ width: '50%' }}
-                        />
+                        <input type="number" value={Math.round(displayArr[0] * 10) / 10}
+                          onChange={(e) => handleValueChange(prop.key, [parseFloat(e.target.value) || 0, displayArr[1]])}
+                          step={prop.key === 'scale' ? 1 : 0.5} style={{ width: '50%' }} />
+                        <input type="number" value={Math.round(displayArr[1] * 10) / 10}
+                          onChange={(e) => handleValueChange(prop.key, [displayArr[0], parseFloat(e.target.value) || 0])}
+                          step={prop.key === 'scale' ? 1 : 0.5} style={{ width: '50%' }} />
                       </div>
                     </div>
                   );
@@ -361,50 +377,19 @@ export function Properties() {
                 const defaultNum = rawValue as number;
                 const displayNum = getDisplayValue(prop.key, defaultNum) as number;
                 return (
-                  <div key={prop.key} className="prop-row">
-                    <button
-                      className={`prop-keyframe-btn${hasKf ? ' has-keyframe' : ''}${animated ? ' animated' : ''}`}
-                      onClick={() => {
-                        if (hasKf) {
-                          removeKeyframe(selectedLayer.id, prop.key, currentFrame);
-                        } else {
-                          handleAddKeyframe(prop.key, displayNum);
-                        }
-                      }}
-                      title={hasKf ? 'キーフレーム削除' : 'キーフレーム追加'}
-                    >
-                      <svg viewBox="0 0 14 14" width="12" height="12">
-                        <circle cx="7" cy="8" r="4.5"
-                          fill={hasKf ? 'var(--color-keyframe)' : 'none'}
-                          stroke={animated ? 'var(--color-keyframe)' : 'currentColor'} strokeWidth="1.2"
-                        />
-                        <line x1="7" y1="8" x2="7" y2="5.5" stroke={hasKf ? '#fff' : 'currentColor'} strokeWidth="1" />
-                        <line x1="5" y1="2.5" x2="9" y2="2.5" stroke={animated ? 'var(--color-keyframe)' : 'currentColor'} strokeWidth="1" />
-                      </svg>
-                    </button>
-                    <span className={`prop-label${animated ? ' animated' : ''}`}>{prop.label}</span>
+                  <div key={prop.key} className="prop-row prop-row-kf">
+                    {kfControls}
+                    <span
+                      className={`prop-label scrub${animated ? ' animated' : ''}`}
+                      onMouseDown={(e) => handleDragStart(e, displayNum, (v) => handleValueChange(prop.key, v), { step: prop.key === 'rotation' ? 1 : 0.5, min: prop.min, max: prop.max })}
+                      title="ドラッグで値を変更"
+                    >{prop.label}</span>
                     <div className="prop-value">
-                      <input
-                        type="number"
-                        value={Math.round(displayNum * 10) / 10}
-                        onChange={(e) =>
-                          handleValueChange(
-                            prop.key,
-                            parseFloat(e.target.value) || 0
-                          )
-                        }
-                        min={prop.min}
-                        max={prop.max}
-                        step={prop.key === 'rotation' ? 1 : 0.5}
-                      />
+                      <input type="number" value={Math.round(displayNum * 10) / 10}
+                        onChange={(e) => handleValueChange(prop.key, parseFloat(e.target.value) || 0)}
+                        min={prop.min} max={prop.max} step={prop.key === 'rotation' ? 1 : 0.5} />
                       {prop.suffix && (
-                        <span style={{
-                          fontSize: 'var(--font-size-xxs)',
-                          color: 'var(--color-text-dim)',
-                          alignSelf: 'center',
-                        }}>
-                          {prop.suffix}
-                        </span>
+                        <span style={{ fontSize: 'var(--font-size-xxs)', color: 'var(--color-text-dim)', alignSelf: 'center' }}>{prop.suffix}</span>
                       )}
                     </div>
                   </div>
@@ -428,30 +413,6 @@ export function Properties() {
             </div>
             {openGroups.text && (
               <>
-                {/* テキスト内容 */}
-                <div className="prop-row" style={{ gridTemplateColumns: '24px 1fr' }}>
-                  <div />
-                  <textarea
-                    value={selectedLayer.textStyle.text}
-                    onChange={(e) =>
-                      updateLayer(selectedLayer.id, {
-                        textStyle: { ...selectedLayer.textStyle!, text: e.target.value },
-                      })
-                    }
-                    rows={3}
-                    style={{
-                      background: 'var(--color-bg-input)',
-                      border: '1px solid var(--color-border)',
-                      borderRadius: 'var(--radius-sm)',
-                      padding: '4px 6px',
-                      fontSize: 'var(--font-size-xs)',
-                      color: 'var(--color-text-primary)',
-                      resize: 'vertical',
-                      fontFamily: 'inherit',
-                      width: '100%',
-                    }}
-                  />
-                </div>
                 {/* フォントファミリー */}
                 <div className="prop-row">
                   <div />
