@@ -724,3 +724,69 @@
   min-width: 80px;
   text-align: center;
 }
+
+/* ---- スケールリンクボタン ---- */
+.prop-link-btn {
+  width: 14px;
+  height: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--color-text-dim);
+  flex-shrink: 0;
+  transition: color 0.15s;
+  padding: 0;
+}
+.prop-link-btn:hover {
+  color: var(--color-text-primary);
+}
+.prop-link-btn.linked {
+  color: var(--color-text-ae-value);
+}
+
+/* ---- コンテキストメニュー ---- */
+.context-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+}
+.prop-context-menu {
+  position: fixed;
+  z-index: 1000;
+  background: var(--color-bg-darker);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  padding: 4px 0;
+  min-width: 160px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+}
+.prop-context-menu button {
+  display: block;
+  width: 100%;
+  padding: 5px 16px;
+  text-align: left;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-primary);
+  background: none;
+  border: none;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.prop-context-menu button:hover {
+  background: var(--color-accent);
+  color: #fff;
+}
+.prop-context-menu button:disabled {
+  color: var(--color-text-dim);
+  cursor: default;
+}
+.prop-context-menu button:disabled:hover {
+  background: none;
+  color: var(--color-text-dim);
+}
+.context-divider {
+  height: 1px;
+  background: var(--color-border);
+  margin: 4px 0;
+}

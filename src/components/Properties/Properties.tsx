@@ -43,6 +43,20 @@ export function Properties() {
     layer: true,
   });
 
+  // スケールリンク
+  const [scaleLinked, setScaleLinked] = useState(true);
+
+  // 次元分割（位置/スケール/アンカーポイント）
+  const [splitDimensions, setSplitDimensions] = useState<Record<string, boolean>>({});
+
+  // コンテキストメニュー
+  const [contextMenu, setContextMenu] = useState<{
+    x: number; y: number; propKey: string; value: number | [number, number];
+  } | null>(null);
+
+  // クリップボード（値コピペ）
+  const [clipboardValue, setClipboardValue] = useState<number | [number, number] | null>(null);
+
   const selectedLayer = layers.find((l) => l.id === selectedLayerIds[0]);
 
   const toggleGroup = (group: string) => {
@@ -157,8 +171,18 @@ export function Properties() {
   /** 値変更時、KFが有効なプロパティなら自動でKF更新 */
   const handleValueChange = (propKey: string, value: number | [number, number]) => {
     if (!selectedLayer) return;
+    // スケールリンク対応
+    if (propKey === 'scale' && scaleLinked && Array.isArray(value)) {
+      const oldScale = selectedLayer.transform.scale;
+      const resolved = getDisplayValue('scale', oldScale) as [number, number];
+      // X/Yどちらが変わったかを判定
+      if (value[0] !== resolved[0]) {
+        value = [value[0], value[0]]; // Xに合わせる
+      } else if (value[1] !== resolved[1]) {
+        value = [value[1], value[1]]; // Yに合わせる
+      }
+    }
     updateTransform(selectedLayer.id, propKey, value);
-    // KFが有効なプロパティなら現在フレームのKFも更新
     if (isAnimated(propKey)) {
       handleAddKeyframe(propKey, value);
     }
@@ -185,6 +209,69 @@ export function Properties() {
       handleAddKeyframe(propKey, value);
     }
   };
+
+  /** デフォルト値テーブル */
+  const DEFAULT_VALUES: Record<string, number | [number, number]> = {
+    anchorPoint: [0, 0], position: [960, 540], scale: [100, 100],
+    rotation: 0, opacity: 100,
+  };
+
+  /** 右クリックメニューを開く */
+  const openContextMenu = (e: React.MouseEvent, propKey: string, value: number | [number, number]) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setContextMenu({ x: e.clientX, y: e.clientY, propKey, value });
+  };
+
+  /** 右クリックメニューアクション */
+  const contextMenuActions = {
+    addKf: () => {
+      if (!contextMenu || !selectedLayer) return;
+      handleAddKeyframe(contextMenu.propKey, contextMenu.value);
+      setContextMenu(null);
+    },
+    removeKf: () => {
+      if (!contextMenu || !selectedLayer) return;
+      removeKeyframe(selectedLayer.id, contextMenu.propKey, currentFrame);
+      setContextMenu(null);
+    },
+    removeAllKf: () => {
+      if (!contextMenu || !selectedLayer) return;
+      const propAnim = animations[selectedLayer.id]?.[contextMenu.propKey];
+      if (propAnim) {
+        propAnim.keyframes.forEach(kf => {
+          removeKeyframe(selectedLayer.id, contextMenu.propKey, kf.time);
+        });
+      }
+      setContextMenu(null);
+    },
+    resetValue: () => {
+      if (!contextMenu || !selectedLayer) return;
+      const defaultVal = DEFAULT_VALUES[contextMenu.propKey];
+      if (defaultVal !== undefined) {
+        updateTransform(selectedLayer.id, contextMenu.propKey, defaultVal);
+      }
+      setContextMenu(null);
+    },
+    copyValue: () => {
+      if (!contextMenu) return;
+      setClipboardValue(contextMenu.value);
+      setContextMenu(null);
+    },
+    pasteValue: () => {
+      if (!contextMenu || !selectedLayer || clipboardValue === null) return;
+      handleValueChange(contextMenu.propKey, clipboardValue);
+      setContextMenu(null);
+    },
+    toggleSplit: () => {
+      if (!contextMenu) return;
+      setSplitDimensions(prev => ({ ...prev, [contextMenu.propKey]: !prev[contextMenu.propKey] }));
+      setContextMenu(null);
+    },
+  };
+
+  /** 次元分割対象かどうか */
+  const canSplitDimension = (propKey: string) => ['position', 'scale', 'anchorPoint'].includes(propKey);
 
   /** KFボタン付き数値プロパティ行（ナビ矢印+ドラッグスクラブ対応） */
   const renderKfNumericRow = (
@@ -375,8 +462,48 @@ export function Properties() {
                 if (prop.type === 'xy') {
                   const defaultArr = rawValue as [number, number];
                   const displayArr = getDisplayValue(prop.key, defaultArr) as [number, number];
+                  const isSplit = splitDimensions[prop.key];
+
+                  // 次元分割モード: X/Yを個別行に
+                  if (isSplit) {
+                    return (
+                      <div key={prop.key}>
+                        {['X', 'Y'].map((axis, idx) => (
+                          <div key={`${prop.key}_${axis}`} className="prop-row prop-row-kf"
+                            onContextMenu={(e) => openContextMenu(e, prop.key, displayArr)}>
+                            {idx === 0 ? kfControls : <div className="prop-kf-controls" />}
+                            <span
+                              className={`prop-label scrub${animated ? ' animated' : ''}`}
+                              onMouseDown={(e) => handleDragStart(e, displayArr[idx], (v) => {
+                                const newArr: [number, number] = [...displayArr];
+                                newArr[idx] = v;
+                                handleValueChange(prop.key, newArr);
+                              }, { step: prop.key === 'scale' ? 1 : 0.5 })}
+                            >{`${prop.label} ${axis}`}</span>
+                            <div className="prop-value">
+                              <input type="number" value={Math.round(displayArr[idx] * 10) / 10}
+                                onChange={(e) => {
+                                  const newArr: [number, number] = [...displayArr];
+                                  newArr[idx] = parseFloat(e.target.value) || 0;
+                                  handleValueChange(prop.key, newArr);
+                                }}
+                                readOnly
+                                onMouseDown={(e) => { if (!e.currentTarget.readOnly) return; handleDragStart(e, displayArr[idx], (v) => { const a: [number, number] = [...displayArr]; a[idx] = v; handleValueChange(prop.key, a); }, { step: prop.key === 'scale' ? 1 : 0.5 }); }}
+                                onDoubleClick={(e) => { e.currentTarget.readOnly = false; e.currentTarget.focus(); e.currentTarget.select(); }}
+                                onBlur={(e) => { e.currentTarget.readOnly = true; }}
+                                onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+                                step={prop.key === 'scale' ? 1 : 0.5} />
+                              {prop.suffix && <span style={{ fontSize: 'var(--font-size-xxs)', color: 'var(--color-text-dim)' }}>{prop.suffix}</span>}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  }
+
                   return (
-                    <div key={prop.key} className="prop-row prop-row-kf">
+                    <div key={prop.key} className="prop-row prop-row-kf"
+                      onContextMenu={(e) => openContextMenu(e, prop.key, displayArr)}>
                       {kfControls}
                       <span
                         className={`prop-label scrub${animated ? ' animated' : ''}`}
@@ -387,16 +514,32 @@ export function Properties() {
                         <input type="number" value={Math.round(displayArr[0] * 10) / 10}
                           onChange={(e) => handleValueChange(prop.key, [parseFloat(e.target.value) || 0, displayArr[1]])}
                           readOnly
-                          onMouseDown={(e) => { if (!(e.currentTarget as HTMLInputElement).readOnly) return; handleDragStart(e, displayArr[0], (v) => handleValueChange(prop.key, [v, displayArr[1]]), { step: prop.key === 'scale' ? 1 : 0.5 }); }}
-                          onDoubleClick={(e) => { const el = e.currentTarget; el.readOnly = false; el.focus(); el.select(); }}
+                          onMouseDown={(e) => { if (!e.currentTarget.readOnly) return; handleDragStart(e, displayArr[0], (v) => handleValueChange(prop.key, [v, displayArr[1]]), { step: prop.key === 'scale' ? 1 : 0.5 }); }}
+                          onDoubleClick={(e) => { e.currentTarget.readOnly = false; e.currentTarget.focus(); e.currentTarget.select(); }}
                           onBlur={(e) => { e.currentTarget.readOnly = true; }}
                           onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
                           step={prop.key === 'scale' ? 1 : 0.5} style={{ width: '50%' }} />
+                        {/* スケールリンクアイコン */}
+                        {prop.key === 'scale' && (
+                          <button
+                            className={`prop-link-btn${scaleLinked ? ' linked' : ''}`}
+                            onClick={() => setScaleLinked(!scaleLinked)}
+                            title={scaleLinked ? '縦横比を解除' : '縦横比を固定'}
+                          >
+                            <svg viewBox="0 0 12 12" width="10" height="10">
+                              {scaleLinked ? (
+                                <path d="M3 4V2h6v2M3 8v2h6V8M6 4v4" stroke="currentColor" strokeWidth="1.2" fill="none" />
+                              ) : (
+                                <path d="M3 4V2h6v2M3 8v2h6V8M6 4v1M6 7v1" stroke="currentColor" strokeWidth="1.2" fill="none" strokeDasharray="1 1" />
+                              )}
+                            </svg>
+                          </button>
+                        )}
                         <input type="number" value={Math.round(displayArr[1] * 10) / 10}
                           onChange={(e) => handleValueChange(prop.key, [displayArr[0], parseFloat(e.target.value) || 0])}
                           readOnly
-                          onMouseDown={(e) => { if (!(e.currentTarget as HTMLInputElement).readOnly) return; handleDragStart(e, displayArr[1], (v) => handleValueChange(prop.key, [displayArr[0], v]), { step: prop.key === 'scale' ? 1 : 0.5 }); }}
-                          onDoubleClick={(e) => { const el = e.currentTarget; el.readOnly = false; el.focus(); el.select(); }}
+                          onMouseDown={(e) => { if (!e.currentTarget.readOnly) return; handleDragStart(e, displayArr[1], (v) => handleValueChange(prop.key, [displayArr[0], v]), { step: prop.key === 'scale' ? 1 : 0.5 }); }}
+                          onDoubleClick={(e) => { e.currentTarget.readOnly = false; e.currentTarget.focus(); e.currentTarget.select(); }}
                           onBlur={(e) => { e.currentTarget.readOnly = true; }}
                           onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
                           step={prop.key === 'scale' ? 1 : 0.5} style={{ width: '50%' }} />
@@ -408,7 +551,8 @@ export function Properties() {
                 const defaultNum = rawValue as number;
                 const displayNum = getDisplayValue(prop.key, defaultNum) as number;
                 return (
-                  <div key={prop.key} className="prop-row prop-row-kf">
+                  <div key={prop.key} className="prop-row prop-row-kf"
+                    onContextMenu={(e) => openContextMenu(e, prop.key, displayNum)}>
                     {kfControls}
                     <span
                       className={`prop-label scrub${animated ? ' animated' : ''}`}
@@ -419,8 +563,8 @@ export function Properties() {
                       <input type="number" value={Math.round(displayNum * 10) / 10}
                         onChange={(e) => handleValueChange(prop.key, parseFloat(e.target.value) || 0)}
                         readOnly
-                        onMouseDown={(e) => { if (!(e.currentTarget as HTMLInputElement).readOnly) return; handleDragStart(e, displayNum, (v) => handleValueChange(prop.key, v), { step: prop.key === 'rotation' ? 1 : 0.5, min: prop.min, max: prop.max }); }}
-                        onDoubleClick={(e) => { const el = e.currentTarget; el.readOnly = false; el.focus(); el.select(); }}
+                        onMouseDown={(e) => { if (!e.currentTarget.readOnly) return; handleDragStart(e, displayNum, (v) => handleValueChange(prop.key, v), { step: prop.key === 'rotation' ? 1 : 0.5, min: prop.min, max: prop.max }); }}
+                        onDoubleClick={(e) => { e.currentTarget.readOnly = false; e.currentTarget.focus(); e.currentTarget.select(); }}
                         onBlur={(e) => { e.currentTarget.readOnly = true; }}
                         onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
                         min={prop.min} max={prop.max} step={prop.key === 'rotation' ? 1 : 0.5} />
@@ -770,6 +914,37 @@ export function Properties() {
           )}
         </div>
       </div>
+
+      {/* コンテキストメニュー */}
+      {contextMenu && (
+        <>
+          <div className="context-overlay" onClick={() => setContextMenu(null)} />
+          <div className="prop-context-menu" style={{ left: contextMenu.x, top: contextMenu.y }}>
+            {hasKeyframe(contextMenu.propKey) ? (
+              <button onClick={contextMenuActions.removeKf}>キーフレーム削除</button>
+            ) : (
+              <button onClick={contextMenuActions.addKf}>キーフレーム追加</button>
+            )}
+            {isAnimated(contextMenu.propKey) && (
+              <button onClick={contextMenuActions.removeAllKf}>全キーフレーム削除</button>
+            )}
+            <div className="context-divider" />
+            <button onClick={contextMenuActions.resetValue}>値をリセット</button>
+            <button onClick={contextMenuActions.copyValue}>値をコピー</button>
+            <button onClick={contextMenuActions.pasteValue} disabled={clipboardValue === null}>
+              値をペースト
+            </button>
+            {canSplitDimension(contextMenu.propKey) && (
+              <>
+                <div className="context-divider" />
+                <button onClick={contextMenuActions.toggleSplit}>
+                  {splitDimensions[contextMenu.propKey] ? '次元を統合' : '次元を分割'}
+                </button>
+              </>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }
