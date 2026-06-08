@@ -130,6 +130,7 @@ const DEFAULT_LAYOUT: IJsonModel = {
 
 /** FlexLayout Model (モジュールレベルで保持) */
 let flexModel: Model = Model.fromJson(DEFAULT_LAYOUT);
+flexModel.setSplitterSize(0);
 
 export interface ContextMenuItem {
   label: string;
