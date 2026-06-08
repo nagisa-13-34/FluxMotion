@@ -235,42 +235,26 @@ export class Renderer {
     const ds = transform.directionalScale!;
     const ap = transform.anchorPoint;
 
-    // ベースの位置と回転
+    // 位置・回転は通常通り
     ctx.translate(transform.position[0], transform.position[1]);
     ctx.rotate((transform.rotation * Math.PI) / 180);
 
-    // 方向別スケール計算
-    // ソリッドは(-w/2, -h/2)から(w/2, h/2)に描画される
-    // アンカーオフセット後、描画原点は(-ap.x, -ap.y)
-    // ソリッド中心は(-ap.x + 0, -ap.y + 0) = (-ap.x, -ap.y)
-
+    // 方向別スケール: 各方向の合成（位置ずれなし）
     let sx = transform.scale[0] / 100;
     let sy = transform.scale[1] / 100;
-    let offsetX = 0;
-    let offsetY = 0;
 
     if (ds.top !== undefined || ds.bottom !== undefined) {
       const topFactor = (ds.top ?? transform.scale[1]) / 100;
       const bottomFactor = (ds.bottom ?? transform.scale[1]) / 100;
-      // 合成Y倍率
       sy = (topFactor + bottomFactor) / 2;
-      // 非対称オフセット: bottom > top → 下に伸びる → 原点を上にずらす
-      // ソリッド中心（アンカー基準）からのズレ
-      // 上端が topFactor で、下端が bottomFactor なので、
-      // 全体の中心は (bottomFactor - topFactor) / (topFactor + bottomFactor) だけずれる
-      // これをスケール前の座標で計算し、描画オフセットとして適用
-      offsetY = (bottomFactor - topFactor) / 2 * (this.height / 2);
     }
 
     if (ds.left !== undefined || ds.right !== undefined) {
       const leftFactor = (ds.left ?? transform.scale[0]) / 100;
       const rightFactor = (ds.right ?? transform.scale[0]) / 100;
       sx = (leftFactor + rightFactor) / 2;
-      offsetX = (rightFactor - leftFactor) / 2 * (this.width / 2);
     }
 
-    // オフセットを適用してからスケール
-    ctx.translate(offsetX, offsetY);
     ctx.scale(sx, sy);
     ctx.translate(-ap[0], -ap[1]);
   }
