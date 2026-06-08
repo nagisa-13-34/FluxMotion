@@ -87,8 +87,7 @@
 }
 
 .flexlayout__splitter:hover {
-  background: var(--color-accent) !important;
-  transition: background var(--transition-fast);
+  background: transparent !important;
 }
 
 /* ドラッグ時のドロップインジケーター */
@@ -109,7 +108,7 @@
 }
 
 .flexlayout__splitter_border:hover {
-  background: var(--color-accent) !important;
+  background: transparent !important;
 }
 
 .flexlayout__border_button {
