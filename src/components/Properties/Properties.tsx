@@ -266,20 +266,30 @@ export function Properties() {
       handleValueChange(contextMenu.propKey, clipboardValue);
       setContextMenu(null);
     },
-    toggleSplit: () => {
+    /** 次元分割を進める */
+    splitUp: () => {
       if (!contextMenu) return;
-      // 子キー(scale.top等)を親キーにマッピング
       const parentKey = contextMenu.propKey.includes('.') ? contextMenu.propKey.split('.')[0] : contextMenu.propKey;
       const cur = splitDimensions[parentKey] || 0;
       const maxLevel = parentKey === 'scale' ? 2 : 1;
-      const next = cur >= maxLevel ? 0 : cur + 1;
-      // 段階2に入るとき、現在のスケール値でdirScale初期化
+      if (cur >= maxLevel) return;
+      const next = cur + 1;
       if (parentKey === 'scale' && next === 2 && selectedLayer) {
         const s = selectedLayer.transform.scale;
         setDirScaleValues({ top: s[1], bottom: s[1], left: s[0], right: s[0] });
       }
-      // 段階0に戻すとき、directionalScaleをクリア
-      if (parentKey === 'scale' && next === 0 && selectedLayer) {
+      setSplitDimensions(prev => ({ ...prev, [parentKey]: next }));
+      setContextMenu(null);
+    },
+    /** 次元統合（一段階戻す） */
+    mergeSplit: () => {
+      if (!contextMenu) return;
+      const parentKey = contextMenu.propKey.includes('.') ? contextMenu.propKey.split('.')[0] : contextMenu.propKey;
+      const cur = splitDimensions[parentKey] || 0;
+      if (cur <= 0) return;
+      const next = cur - 1;
+      // 段階2→1 or 1→0: directionalScaleクリア
+      if (parentKey === 'scale' && next < 2 && selectedLayer) {
         updateLayer(selectedLayer.id, {
           transform: { ...selectedLayer.transform, directionalScale: undefined },
         });
@@ -295,16 +305,28 @@ export function Properties() {
     return ['position', 'scale', 'anchorPoint'].includes(parentKey);
   };
 
-  /** 次元分割メニューテキスト */
-  const getSplitLabel = (propKey: string): string => {
-    const parentKey = propKey.includes('.') ? propKey.split('.')[0] : propKey;
-    const level = splitDimensions[parentKey] || 0;
+  /** 親キー取得ヘルパー */
+  const getParentKey = (propKey: string) => propKey.includes('.') ? propKey.split('.')[0] : propKey;
+
+  /** 次元分割レベル取得 */
+  const getSplitLevel = (propKey: string) => splitDimensions[getParentKey(propKey)] || 0;
+
+  /** 分割可能か */
+  const canSplitUp = (propKey: string) => {
+    const parentKey = getParentKey(propKey);
+    const maxLevel = parentKey === 'scale' ? 2 : 1;
+    return getSplitLevel(propKey) < maxLevel;
+  };
+
+  /** 分割ラベル */
+  const getSplitUpLabel = (propKey: string): string => {
+    const parentKey = getParentKey(propKey);
+    const level = getSplitLevel(propKey);
     if (parentKey === 'scale') {
       if (level === 0) return '次元を分割 (X/Y)';
       if (level === 1) return '次元を分割 (上下左右)';
-      return '次元を統合';
     }
-    return level === 0 ? '次元を分割' : '次元を統合';
+    return '次元を分割';
   };
 
   /** KFボタン付き数値プロパティ行（ナビ矢印+ドラッグスクラブ対応） */
@@ -1102,9 +1124,16 @@ export function Properties() {
             {canSplitDimension(contextMenu.propKey) && (
               <>
                 <div className="context-divider" />
-                <button onClick={contextMenuActions.toggleSplit}>
-                  {getSplitLabel(contextMenu.propKey)}
-                </button>
+                {canSplitUp(contextMenu.propKey) && (
+                  <button onClick={contextMenuActions.splitUp}>
+                    {getSplitUpLabel(contextMenu.propKey)}
+                  </button>
+                )}
+                {getSplitLevel(contextMenu.propKey) > 0 && (
+                  <button onClick={contextMenuActions.mergeSplit}>
+                    次元を統合
+                  </button>
+                )}
               </>
             )}
           </div>
