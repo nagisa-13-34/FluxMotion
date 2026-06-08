@@ -274,26 +274,234 @@ export function Properties() {
       const maxLevel = parentKey === 'scale' ? 2 : 1;
       if (cur >= maxLevel) return;
       const next = cur + 1;
-      if (parentKey === 'scale' && next === 2 && selectedLayer) {
-        const s = selectedLayer.transform.scale;
-        setDirScaleValues({ top: s[1], bottom: s[1], left: s[0], right: s[0] });
+
+      // キーフレーム分割ロジック (scale)
+      if (parentKey === 'scale' && selectedLayer) {
+        const layerId = selectedLayer.id;
+        const anims = animations[layerId] || {};
+
+        // 0→1: scale → scale.x / scale.y (イージングそのまま保持)
+        if (cur === 0 && next === 1 && anims['scale']) {
+          const scaleKfs = anims['scale'].keyframes;
+          scaleKfs.forEach(kf => {
+            const [x, y] = Array.isArray(kf.value) ? kf.value : [kf.value, kf.value];
+            addKeyframe(layerId, 'scale.x', { time: kf.time, value: x as number, interpolation: kf.interpolation, bezierPoints: kf.bezierPoints ? [...kf.bezierPoints] as [number, number, number, number] : undefined });
+            addKeyframe(layerId, 'scale.y', { time: kf.time, value: y as number, interpolation: kf.interpolation, bezierPoints: kf.bezierPoints ? [...kf.bezierPoints] as [number, number, number, number] : undefined });
+          });
+          scaleKfs.forEach(kf => removeKeyframe(layerId, 'scale', kf.time));
+        }
+
+        // 1→2: X/Y → directionals (top,bottom,left,right) (イージング保持)
+        if (cur === 1 && next === 2) {
+          const xKfs = anims['scale.x']?.keyframes || [];
+          const yKfs = anims['scale.y']?.keyframes || [];
+
+          // ★ 現在のX/Y値を取得してdirScaleValuesとtransform.directionalScaleを初期化
+          const curX = xKfs.length > 0
+            ? interpolateValue({ name: '', keyframes: xKfs }, currentFrame) as number ?? selectedLayer.transform.scale[0]
+            : selectedLayer.transform.scale[0];
+          const curY = yKfs.length > 0
+            ? interpolateValue({ name: '', keyframes: yKfs }, currentFrame) as number ?? selectedLayer.transform.scale[1]
+            : selectedLayer.transform.scale[1];
+          const newDirValues = { top: curY, bottom: curY, left: curX, right: curX };
+          setDirScaleValues(newDirValues);
+          const latestLayer1 = useLayerStore.getState().layers.find(l => l.id === layerId);
+          if (latestLayer1) {
+            updateLayer(layerId, {
+              transform: {
+                ...latestLayer1.transform,
+                directionalScale: newDirValues,
+              },
+            });
+          }
+
+          // キーフレーム変換
+          const times = new Set([...xKfs.map(k => k.time), ...yKfs.map(k => k.time)]);
+          times.forEach(t => {
+            const xKf = xKfs.find(k => k.time === t);
+            const yKf = yKfs.find(k => k.time === t);
+            const xVal = xKf ? (xKf.value as number) : (xKfs.length > 0 ? interpolateValue({ name: '', keyframes: xKfs }, t) as number : curX);
+            const yVal = yKf ? (yKf.value as number) : (yKfs.length > 0 ? interpolateValue({ name: '', keyframes: yKfs }, t) as number : curY);
+            const srcKf = yKf || xKf;
+            const interp = srcKf?.interpolation || 'bezier';
+            const bp = srcKf?.bezierPoints ? [...srcKf.bezierPoints] as [number, number, number, number] : EASING_PRESETS.easeInOut;
+            ['top', 'bottom'].forEach(dir => {
+              addKeyframe(layerId, `scale.${dir}`, { time: t, value: yVal, interpolation: interp, bezierPoints: bp });
+            });
+            ['left', 'right'].forEach(dir => {
+              addKeyframe(layerId, `scale.${dir}`, { time: t, value: xVal, interpolation: interp, bezierPoints: bp });
+            });
+          });
+          xKfs.forEach(kf => removeKeyframe(layerId, 'scale.x', kf.time));
+          yKfs.forEach(kf => removeKeyframe(layerId, 'scale.y', kf.time));
+        }
       }
+
+      // position / anchorPoint (0→1: array → x/y) (イージング保持)
+      if ((parentKey === 'position' || parentKey === 'anchorPoint') && selectedLayer) {
+        const layerId = selectedLayer.id;
+        const anims = animations[layerId] || {};
+        if (cur === 0 && next === 1 && anims[parentKey]) {
+          const kfs = anims[parentKey].keyframes;
+          kfs.forEach(kf => {
+            const [x, y] = Array.isArray(kf.value) ? kf.value : [kf.value, kf.value];
+            addKeyframe(layerId, `${parentKey}.x`, { time: kf.time, value: x as number, interpolation: kf.interpolation, bezierPoints: kf.bezierPoints ? [...kf.bezierPoints] as [number, number, number, number] : undefined });
+            addKeyframe(layerId, `${parentKey}.y`, { time: kf.time, value: y as number, interpolation: kf.interpolation, bezierPoints: kf.bezierPoints ? [...kf.bezierPoints] as [number, number, number, number] : undefined });
+          });
+          kfs.forEach(kf => removeKeyframe(layerId, parentKey, kf.time));
+        }
+      }
+
       setSplitDimensions(prev => ({ ...prev, [parentKey]: next }));
       setContextMenu(null);
     },
-    /** 次元統合（一段階戻す） */
+    /** 次元統合 */
     mergeSplit: () => {
       if (!contextMenu) return;
       const parentKey = contextMenu.propKey.includes('.') ? contextMenu.propKey.split('.')[0] : contextMenu.propKey;
-      const cur = splitDimensions[parentKey] || 0;
-      if (cur <= 0) return;
-      const next = cur - 1;
-      // 段階2→1 or 1→0: directionalScaleクリア
-      if (parentKey === 'scale' && next < 2 && selectedLayer) {
-        updateLayer(selectedLayer.id, {
-          transform: { ...selectedLayer.transform, directionalScale: undefined },
+      const layerId = selectedLayer?.id;
+      if (!layerId) return;
+      const anims = animations[layerId] || {};
+      const curLevel = splitDimensions[parentKey] || 0;
+      const next = curLevel - 1;
+
+      // level2 -> 1 : directionals -> X/Y (イージング保持)
+      // top+bottomの平均→Y、left+rightの平均→X で見た目を維持
+      if (parentKey === 'scale' && curLevel === 2) {
+        const dirs = ['top', 'bottom', 'left', 'right'] as const;
+        const dirKfs: Record<string, Keyframe[]> = {};
+        dirs.forEach(dir => {
+          dirKfs[dir] = anims[`scale.${dir}`]?.keyframes || [];
         });
+
+        // 現在の方向別スケール値を取得（transform.directionalScale or transform.scale からフォールバック）
+        const curDS = selectedLayer!.transform.directionalScale;
+        const curTop = curDS?.top ?? selectedLayer!.transform.scale[1];
+        const curBottom = curDS?.bottom ?? selectedLayer!.transform.scale[1];
+        const curLeft = curDS?.left ?? selectedLayer!.transform.scale[0];
+        const curRight = curDS?.right ?? selectedLayer!.transform.scale[0];
+
+        // キーフレームを変換
+        const allDirKfs = [...dirKfs.top, ...dirKfs.bottom, ...dirKfs.left, ...dirKfs.right];
+        const times = new Set(allDirKfs.map(k => k.time));
+        times.forEach(t => {
+          const getVal = (dir: string, fallback: number): number => {
+            const kf = dirKfs[dir].find(k => k.time === t);
+            if (kf) return kf.value as number;
+            if (dirKfs[dir].length > 0) return interpolateValue({ name: '', keyframes: dirKfs[dir] }, t) as number;
+            return fallback;
+          };
+          const topVal = getVal('top', curTop);
+          const bottomVal = getVal('bottom', curBottom);
+          const leftVal = getVal('left', curLeft);
+          const rightVal = getVal('right', curRight);
+          const yVal = (topVal + bottomVal) / 2;
+          const xVal = (leftVal + rightVal) / 2;
+          const srcKf = dirKfs.top.find(k => k.time === t) || dirKfs.bottom.find(k => k.time === t)
+                     || dirKfs.left.find(k => k.time === t) || dirKfs.right.find(k => k.time === t);
+          const interp = srcKf?.interpolation || 'bezier';
+          const bp = srcKf?.bezierPoints ? [...srcKf.bezierPoints] as [number, number, number, number] : EASING_PRESETS.easeInOut;
+          addKeyframe(layerId, 'scale.x', { time: t, value: xVal, interpolation: interp, bezierPoints: bp });
+          addKeyframe(layerId, 'scale.y', { time: t, value: yVal, interpolation: interp, bezierPoints: bp });
+        });
+        dirs.forEach(dir => {
+          dirKfs[dir].forEach(kf => removeKeyframe(layerId, `scale.${dir}`, kf.time));
+        });
+
+        // ★ transform.scale のベース値も更新（レンダラーが参照する静的値）
+        const newScaleX = (curLeft + curRight) / 2;
+        const newScaleY = (curTop + curBottom) / 2;
+        const latestLayer2 = useLayerStore.getState().layers.find(l => l.id === layerId);
+        if (latestLayer2) {
+          updateLayer(layerId, {
+            transform: {
+              ...latestLayer2.transform,
+              scale: [newScaleX, newScaleY] as [number, number],
+              directionalScale: undefined,
+            },
+          });
+        }
       }
+
+      // level1 -> 0 : X/Y -> scale array (イージング保持)
+      if (parentKey === 'scale' && curLevel === 1) {
+        const xKfs = anims['scale.x']?.keyframes || [];
+        const yKfs = anims['scale.y']?.keyframes || [];
+
+        // 現在のX/Y値を取得（KFがあれば現フレームの補間値、なければtransform.scale）
+        const curX = xKfs.length > 0
+          ? interpolateValue({ name: '', keyframes: xKfs }, currentFrame) as number ?? selectedLayer!.transform.scale[0]
+          : selectedLayer!.transform.scale[0];
+        const curY = yKfs.length > 0
+          ? interpolateValue({ name: '', keyframes: yKfs }, currentFrame) as number ?? selectedLayer!.transform.scale[1]
+          : selectedLayer!.transform.scale[1];
+
+        // キーフレーム変換
+        const times = new Set([...xKfs.map(k => k.time), ...yKfs.map(k => k.time)]);
+        times.forEach(t => {
+          const xKf = xKfs.find(k => k.time === t);
+          const yKf = yKfs.find(k => k.time === t);
+          const xVal = xKf ? (xKf.value as number) : (xKfs.length > 0 ? interpolateValue({ name: '', keyframes: xKfs }, t) as number : curX);
+          const yVal = yKf ? (yKf.value as number) : (yKfs.length > 0 ? interpolateValue({ name: '', keyframes: yKfs }, t) as number : curY);
+          const srcKf = xKf || yKf;
+          const interp = srcKf?.interpolation || 'bezier';
+          const bp = srcKf?.bezierPoints ? [...srcKf.bezierPoints] as [number, number, number, number] : EASING_PRESETS.easeInOut;
+          addKeyframe(layerId, 'scale', { time: t, value: [xVal, yVal], interpolation: interp, bezierPoints: bp });
+        });
+        xKfs.forEach(kf => removeKeyframe(layerId, 'scale.x', kf.time));
+        yKfs.forEach(kf => removeKeyframe(layerId, 'scale.y', kf.time));
+
+        // ★ transform.scale のベース値も更新
+        const latestLayer3 = useLayerStore.getState().layers.find(l => l.id === layerId);
+        if (latestLayer3) {
+          updateLayer(layerId, {
+            transform: { ...latestLayer3.transform, scale: [curX, curY] as [number, number] },
+          });
+        }
+      }
+
+      // position / anchorPoint (1→0: x/y → array) (イージング保持)
+      if ((parentKey === 'position' || parentKey === 'anchorPoint') && curLevel === 1) {
+        const xKfs = anims[`${parentKey}.x`]?.keyframes || [];
+        const yKfs = anims[`${parentKey}.y`]?.keyframes || [];
+        const defaultVal = selectedLayer!.transform[parentKey as 'position' | 'anchorPoint'] as [number, number];
+
+        // 現在のX/Y値
+        const curX = xKfs.length > 0
+          ? interpolateValue({ name: '', keyframes: xKfs }, currentFrame) as number ?? defaultVal[0]
+          : defaultVal[0];
+        const curY = yKfs.length > 0
+          ? interpolateValue({ name: '', keyframes: yKfs }, currentFrame) as number ?? defaultVal[1]
+          : defaultVal[1];
+
+        const times = new Set([...xKfs.map(k => k.time), ...yKfs.map(k => k.time)]);
+        times.forEach(t => {
+          const xKf = xKfs.find(k => k.time === t);
+          const yKf = yKfs.find(k => k.time === t);
+          const xVal = xKf ? (xKf.value as number) : (xKfs.length > 0 ? interpolateValue({ name: '', keyframes: xKfs }, t) as number : curX);
+          const yVal = yKf ? (yKf.value as number) : (yKfs.length > 0 ? interpolateValue({ name: '', keyframes: yKfs }, t) as number : curY);
+          const srcKf = xKf || yKf;
+          const interp = srcKf?.interpolation || 'bezier';
+          const bp = srcKf?.bezierPoints ? [...srcKf.bezierPoints] as [number, number, number, number] : EASING_PRESETS.easeInOut;
+          addKeyframe(layerId, parentKey, { time: t, value: [xVal, yVal], interpolation: interp, bezierPoints: bp });
+        });
+        xKfs.forEach(kf => removeKeyframe(layerId, `${parentKey}.x`, kf.time));
+        yKfs.forEach(kf => removeKeyframe(layerId, `${parentKey}.y`, kf.time));
+
+        // ★ transform ベース値を更新
+        updateTransform(selectedLayer!.id, parentKey, [curX, curY]);
+      }
+
+      // directionalScale クリア（level2->1の場合は上で既に処理済み）
+      if (parentKey === 'scale' && next < 2 && curLevel !== 2) {
+        const latestLayer4 = useLayerStore.getState().layers.find(l => l.id === layerId);
+        if (latestLayer4) {
+          updateLayer(layerId, {
+            transform: { ...latestLayer4.transform, directionalScale: undefined },
+          });
+        }
+      }
+
       setSplitDimensions(prev => ({ ...prev, [parentKey]: next }));
       setContextMenu(null);
     },
@@ -621,12 +829,15 @@ export function Properties() {
                       }
                       setDirScaleValues(newDir);
                       // transform.directionalScaleを更新（レンダラーが直接参照）
-                      updateLayer(selectedLayer.id, {
-                        transform: {
-                          ...selectedLayer.transform,
-                          directionalScale: newDir,
-                        },
-                      });
+                      const latestL = useLayerStore.getState().layers.find(l => l.id === selectedLayer.id);
+                      if (latestL) {
+                        updateLayer(selectedLayer.id, {
+                          transform: {
+                            ...latestL.transform,
+                            directionalScale: newDir,
+                          },
+                        });
+                      }
                       // 方向別KFも更新
                       if (scaleLinked) {
                         // リンク時は全方向のKFを更新
