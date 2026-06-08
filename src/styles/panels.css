@@ -67,9 +67,23 @@
   background: transparent !important;
 }
 
-/* スプリッター（普段は透明、ホバー時のみ表示） */
+/* スプリッター（隙間なし、ホバー時のみ表示） */
 .flexlayout__splitter {
   background: transparent !important;
+  width: 1px !important;
+  height: 1px !important;
+  z-index: 10;
+  position: relative;
+}
+
+/* ホバー用ヒットエリア拡張（擬似要素で太めの領域を確保） */
+.flexlayout__splitter::after {
+  content: '';
+  position: absolute;
+  top: -3px;
+  left: -3px;
+  right: -3px;
+  bottom: -3px;
 }
 
 .flexlayout__splitter:hover {
