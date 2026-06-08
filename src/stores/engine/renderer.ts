@@ -127,6 +127,11 @@ export class Renderer {
       opacity: base.opacity,
     };
 
+    // transform自体に方向別スケールがあればセット
+    if (base.directionalScale) {
+      result.directionalScale = { ...base.directionalScale };
+    }
+
     if (!animations) return result;
     const layerAnim = animations[layer.id];
     if (!layerAnim) return result;

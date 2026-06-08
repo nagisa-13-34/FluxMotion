@@ -21,6 +21,8 @@ export interface Transform {
   scale: [number, number];
   rotation: number;
   opacity: number;
+  /** 方向別スケール（上下左右が独立） */
+  directionalScale?: { top: number; bottom: number; left: number; right: number };
 }
 
 /** テキストレイヤー用のスタイル */
