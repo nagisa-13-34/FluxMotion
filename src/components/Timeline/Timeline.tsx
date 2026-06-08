@@ -26,12 +26,16 @@ export function Timeline() {
   const zoom = useTimelineStore((s) => s.zoom);
   const setZoom = useTimelineStore((s) => s.setZoom);
   const scrollFrame = useTimelineStore((s) => s.scrollFrame);
+  const isPlaying = useTimelineStore((s) => s.isPlaying);
+  const setScrollFrame = useTimelineStore((s) => s.setScrollFrame);
 
   const settings = useProjectStore((s) => s.settings);
   const totalFrames = useProjectStore((s) => s.totalFrames);
 
   const rulerRef = useRef<HTMLDivElement>(null);
   const tracksRef = useRef<HTMLDivElement>(null);
+  // 縦スクロール同期のループ防止フラグ
+  const scrollSyncSource = useRef<'layers' | 'tracks' | null>(null);
   const [isDraggingPlayhead, setIsDraggingPlayhead] = useState(false);
 
   // レイヤー並べ替え用
@@ -241,6 +245,48 @@ export function Timeline() {
     }
   };
 
+  // ── 縦スクロール同期 ──
+  const handleLayersScroll = useCallback(() => {
+    if (scrollSyncSource.current === 'tracks') {
+      scrollSyncSource.current = null;
+      return;
+    }
+    scrollSyncSource.current = 'layers';
+    const layers = layersScrollRef.current;
+    const tracks = tracksRef.current;
+    if (layers && tracks) {
+      tracks.scrollTop = layers.scrollTop;
+    }
+  }, []);
+
+  const handleTracksScroll = useCallback(() => {
+    if (scrollSyncSource.current === 'layers') {
+      scrollSyncSource.current = null;
+      return;
+    }
+    scrollSyncSource.current = 'tracks';
+    const layers = layersScrollRef.current;
+    const tracks = tracksRef.current;
+    if (layers && tracks) {
+      layers.scrollTop = tracks.scrollTop;
+    }
+  }, []);
+
+  // ── 再生時オートスクロール ──
+  useEffect(() => {
+    if (!isPlaying) return;
+    const trackWidth = rulerRef.current?.offsetWidth || 800;
+    const playheadX = (currentFrame - scrollFrame) * zoom;
+    // プレイヘッドが表示領域の右端80%を超えたらスクロール
+    if (playheadX > trackWidth * 0.8) {
+      setScrollFrame(currentFrame - Math.floor(trackWidth * 0.2 / zoom));
+    }
+    // プレイヘッドが表示領域の左端より前に行ったら
+    if (playheadX < 0) {
+      setScrollFrame(Math.max(0, currentFrame - Math.floor(trackWidth * 0.1 / zoom)));
+    }
+  }, [isPlaying, currentFrame, scrollFrame, zoom, setScrollFrame]);
+
   // ルーラーの目盛り生成
   const renderRuler = () => {
     const ticks: React.JSX.Element[] = [];
@@ -435,7 +481,7 @@ export function Timeline() {
               レイヤー ({layers.length})
             </span>
           </div>
-          <div className="timeline-layers-scroll" ref={layersScrollRef}>
+          <div className="timeline-layers-scroll" ref={layersScrollRef} onScroll={handleLayersScroll}>
             {layers.map((layer, idx) => (
             <React.Fragment key={layer.id}>
               <div className="layer-row-wrap">
@@ -567,7 +613,7 @@ export function Timeline() {
             />
           </div>
 
-          <div ref={tracksRef} className="timeline-tracks-scroll">
+          <div ref={tracksRef} className="timeline-tracks-scroll" onScroll={handleTracksScroll}>
             {layers.map((layer) => {
               const clipLeft = frameToX(layer.inPoint);
               const clipWidth = (layer.outPoint - layer.inPoint) * zoom;
