@@ -245,34 +245,28 @@ export class Renderer {
     const leftFactor = (ds.left ?? transform.scale[0]) / 100;
     const rightFactor = (ds.right ?? transform.scale[0]) / 100;
 
-    // 大きなクリップ用サイズ
     const BIG = 10000;
 
-    // --- 上半分を描画 (Y <= pos.y の領域) ---
-    ctx.save();
-    // ワールドスペースでpos.yより上をクリップ
-    ctx.beginPath();
-    ctx.rect(-BIG, -BIG, BIG * 2, BIG + pos[1]);
-    ctx.clip();
-    // 上方向のスケール: 上端固定ではなくpos(アンカー位置)を基準に上方向だけ
-    ctx.translate(pos[0], pos[1]);
-    ctx.rotate(rot);
-    ctx.scale(leftFactor, topFactor);
-    ctx.translate(-ap[0], -ap[1]);
-    renderContent();
-    ctx.restore();
+    // 4象限に分けて描画
+    const quadrants = [
+      { clipX: -BIG, clipW: BIG + pos[0], clipY: -BIG, clipH: BIG + pos[1], sx: leftFactor, sy: topFactor },   // 左上
+      { clipX: pos[0], clipW: BIG, clipY: -BIG, clipH: BIG + pos[1], sx: rightFactor, sy: topFactor },          // 右上
+      { clipX: -BIG, clipW: BIG + pos[0], clipY: pos[1], clipH: BIG, sx: leftFactor, sy: bottomFactor },        // 左下
+      { clipX: pos[0], clipW: BIG, clipY: pos[1], clipH: BIG, sx: rightFactor, sy: bottomFactor },              // 右下
+    ];
 
-    // --- 下半分を描画 (Y >= pos.y の領域) ---
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(-BIG, pos[1], BIG * 2, BIG);
-    ctx.clip();
-    ctx.translate(pos[0], pos[1]);
-    ctx.rotate(rot);
-    ctx.scale(rightFactor, bottomFactor);
-    ctx.translate(-ap[0], -ap[1]);
-    renderContent();
-    ctx.restore();
+    for (const q of quadrants) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(q.clipX, q.clipY, q.clipW, q.clipH);
+      ctx.clip();
+      ctx.translate(pos[0], pos[1]);
+      ctx.rotate(rot);
+      ctx.scale(q.sx, q.sy);
+      ctx.translate(-ap[0], -ap[1]);
+      renderContent();
+      ctx.restore();
+    }
   }
 
   /** ブレンドモード適用 */
