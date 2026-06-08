@@ -26,7 +26,7 @@ interface LayerState {
 
   // -- プロパティ更新 --
   updateLayer: (id: string, partial: Partial<Layer>) => void;
-  updateTransform: (id: string, prop: string, value: number | [number, number]) => void;
+  updateTransform: (id: string, prop: string, value: number | [number, number] | Record<string, number> | undefined) => void;
   toggleVisibility: (id: string) => void;
   toggleLock: (id: string) => void;
   toggleSolo: (id: string) => void;

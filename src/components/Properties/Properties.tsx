@@ -305,15 +305,7 @@ export function Properties() {
             : selectedLayer.transform.scale[1];
           const newDirValues = { top: curY, bottom: curY, left: curX, right: curX };
           setDirScaleValues(newDirValues);
-          const latestLayer1 = useLayerStore.getState().layers.find(l => l.id === layerId);
-          if (latestLayer1) {
-            updateLayer(layerId, {
-              transform: {
-                ...latestLayer1.transform,
-                directionalScale: newDirValues,
-              },
-            });
-          }
+          updateTransform(layerId, 'directionalScale', newDirValues);
 
           // キーフレーム変換
           const times = new Set([...xKfs.map(k => k.time), ...yKfs.map(k => k.time)]);
@@ -408,19 +400,10 @@ export function Properties() {
           dirKfs[dir].forEach(kf => removeKeyframe(layerId, `scale.${dir}`, kf.time));
         });
 
-        // ★ transform.scale のベース値も更新（レンダラーが参照する静的値）
         const newScaleX = (curLeft + curRight) / 2;
         const newScaleY = (curTop + curBottom) / 2;
-        const latestLayer2 = useLayerStore.getState().layers.find(l => l.id === layerId);
-        if (latestLayer2) {
-          updateLayer(layerId, {
-            transform: {
-              ...latestLayer2.transform,
-              scale: [newScaleX, newScaleY] as [number, number],
-              directionalScale: undefined,
-            },
-          });
-        }
+        updateTransform(layerId, 'scale', [newScaleX, newScaleY] as [number, number]);
+        updateTransform(layerId, 'directionalScale', undefined);
       }
 
       // level1 -> 0 : X/Y -> scale array (イージング保持)
@@ -452,12 +435,7 @@ export function Properties() {
         yKfs.forEach(kf => removeKeyframe(layerId, 'scale.y', kf.time));
 
         // ★ transform.scale のベース値も更新
-        const latestLayer3 = useLayerStore.getState().layers.find(l => l.id === layerId);
-        if (latestLayer3) {
-          updateLayer(layerId, {
-            transform: { ...latestLayer3.transform, scale: [curX, curY] as [number, number] },
-          });
-        }
+        updateTransform(layerId, 'scale', [curX, curY] as [number, number]);
       }
 
       // position / anchorPoint (1→0: x/y → array) (イージング保持)
@@ -492,14 +470,8 @@ export function Properties() {
         updateTransform(selectedLayer!.id, parentKey, [curX, curY]);
       }
 
-      // directionalScale クリア（level2->1の場合は上で既に処理済み）
       if (parentKey === 'scale' && next < 2 && curLevel !== 2) {
-        const latestLayer4 = useLayerStore.getState().layers.find(l => l.id === layerId);
-        if (latestLayer4) {
-          updateLayer(layerId, {
-            transform: { ...latestLayer4.transform, directionalScale: undefined },
-          });
-        }
+        updateTransform(layerId, 'directionalScale', undefined);
       }
 
       setSplitDimensions(prev => ({ ...prev, [parentKey]: next }));
@@ -829,15 +801,7 @@ export function Properties() {
                       }
                       setDirScaleValues(newDir);
                       // transform.directionalScaleを更新（レンダラーが直接参照）
-                      const latestL = useLayerStore.getState().layers.find(l => l.id === selectedLayer.id);
-                      if (latestL) {
-                        updateLayer(selectedLayer.id, {
-                          transform: {
-                            ...latestL.transform,
-                            directionalScale: newDir,
-                          },
-                        });
-                      }
+                      updateTransform(selectedLayer.id, 'directionalScale', newDir);
                       // 方向別KFも更新
                       if (scaleLinked) {
                         // リンク時は全方向のKFを更新
