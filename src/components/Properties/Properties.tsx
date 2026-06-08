@@ -2,6 +2,7 @@ import type React from 'react';
 import { useState, useCallback, useRef } from 'react';
 import { useLayerStore } from '../../stores/layerStore';
 import { useTimelineStore } from '../../stores/timelineStore';
+import { useProjectStore } from '../../stores/projectStore';
 import type { Keyframe } from '../../types/keyframe';
 import { EASING_PRESETS } from '../../types/keyframe';
 import { interpolateValue } from '../../stores/engine/keyframe';
@@ -357,6 +358,7 @@ export function Properties() {
       const curLevel = splitDimensions[parentKey] || 0;
       const next = curLevel - 1;
 
+
       // level2 -> 1 : directionals -> X/Y (イージング保持)
       // top+bottomの平均→Y、left+rightの平均→X で見た目を維持
       if (parentKey === 'scale' && curLevel === 2) {
@@ -404,6 +406,29 @@ export function Properties() {
         const newScaleY = (curTop + curBottom) / 2;
         updateTransform(layerId, 'scale', [newScaleX, newScaleY] as [number, number]);
         updateTransform(layerId, 'directionalScale', undefined);
+
+        // ★ Position補正: 非対称directional scaleの視覚的重心ずれを補正
+        // コンテンツは原点中心(-w/2 to w/2)で描画されるので、
+        // 非対称スケール時の視覚中心 = pos + (rightFactor - leftFactor) * w/4
+        // 通常スケール時の視覚中心 = pos
+        // → positionを (rightFactor - leftFactor) * w/4 だけオフセット
+        const leftFactor = curLeft / 100;
+        const rightFactor = curRight / 100;
+        const topFactor = curTop / 100;
+        const bottomFactor = curBottom / 100;
+        const projSettings = useProjectStore.getState().settings;
+        // レイヤータイプに応じたコンテンツサイズ
+        const contentW = selectedLayer!.type === 'solid' ? projSettings.width : 200;
+        const contentH = selectedLayer!.type === 'solid' ? projSettings.height : 200;
+        const offsetX = (rightFactor - leftFactor) * contentW / 4;
+        const offsetY = (bottomFactor - topFactor) * contentH / 4;
+        if (Math.abs(offsetX) > 0.01 || Math.abs(offsetY) > 0.01) {
+          const curPos = useLayerStore.getState().layers.find(l => l.id === layerId)?.transform.position || [960, 540];
+          updateTransform(layerId, 'position', [
+            curPos[0] + offsetX,
+            curPos[1] + offsetY,
+          ] as [number, number]);
+        }
       }
 
       // level1 -> 0 : X/Y -> scale array (イージング保持)
@@ -473,6 +498,7 @@ export function Properties() {
       if (parentKey === 'scale' && next < 2 && curLevel !== 2) {
         updateTransform(layerId, 'directionalScale', undefined);
       }
+
 
       setSplitDimensions(prev => ({ ...prev, [parentKey]: next }));
       setContextMenu(null);
