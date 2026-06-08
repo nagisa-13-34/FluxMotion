@@ -68,9 +68,16 @@ export class Renderer {
       const transform = this.resolveTransform(layer, currentFrame, animations);
 
       ctx.save();
-      this.applyTransformValues(ctx, transform);
       this.applyBlendMode(ctx, layer);
       ctx.globalAlpha = transform.opacity / 100;
+
+      if (transform.directionalScale) {
+        // 方向別スケール: 各方向を独立に適用
+        this.applyDirectionalScale(ctx, layer, transform);
+      } else {
+        // 通常スケール
+        this.applyTransformValues(ctx, transform);
+      }
 
       switch (layer.type) {
         case 'solid':
@@ -102,9 +109,17 @@ export class Renderer {
     scale: [number, number];
     rotation: number;
     opacity: number;
+    directionalScale?: { top?: number; bottom?: number; left?: number; right?: number };
   } {
     const base = layer.transform;
-    const result = {
+    const result: {
+      anchorPoint: [number, number];
+      position: [number, number];
+      scale: [number, number];
+      rotation: number;
+      opacity: number;
+      directionalScale?: { top?: number; bottom?: number; left?: number; right?: number };
+    } = {
       anchorPoint: [...base.anchorPoint] as [number, number],
       position: [...base.position] as [number, number],
       scale: [...base.scale] as [number, number],
@@ -115,6 +130,10 @@ export class Renderer {
     if (!animations) return result;
     const layerAnim = animations[layer.id];
     if (!layerAnim) return result;
+
+    // 方向別スケール検出用
+    const dirScale: { top?: number; bottom?: number; left?: number; right?: number } = {};
+    let hasDirectional = false;
 
     // 各プロパティのキーフレーム補間値を適用
     for (const [propName, prop] of Object.entries(layerAnim)) {
@@ -145,14 +164,22 @@ export class Renderer {
           if (Array.isArray(val)) result.scale = val as [number, number];
           break;
         case 'scale.x':
-        case 'scale.left':
-        case 'scale.right':
           if (typeof val === 'number') result.scale[0] = val;
           break;
         case 'scale.y':
-        case 'scale.top':
-        case 'scale.bottom':
           if (typeof val === 'number') result.scale[1] = val;
+          break;
+        case 'scale.top':
+          if (typeof val === 'number') { dirScale.top = val; hasDirectional = true; }
+          break;
+        case 'scale.bottom':
+          if (typeof val === 'number') { dirScale.bottom = val; hasDirectional = true; }
+          break;
+        case 'scale.left':
+          if (typeof val === 'number') { dirScale.left = val; hasDirectional = true; }
+          break;
+        case 'scale.right':
+          if (typeof val === 'number') { dirScale.right = val; hasDirectional = true; }
           break;
         case 'rotation':
           if (typeof val === 'number') result.rotation = val;
@@ -161,6 +188,10 @@ export class Renderer {
           if (typeof val === 'number') result.opacity = val;
           break;
       }
+    }
+
+    if (hasDirectional) {
+      result.directionalScale = dirScale;
     }
 
     return result;
@@ -181,6 +212,60 @@ export class Renderer {
     ctx.rotate((transform.rotation * Math.PI) / 180);
     ctx.scale(transform.scale[0] / 100, transform.scale[1] / 100);
     ctx.translate(-transform.anchorPoint[0], -transform.anchorPoint[1]);
+  }
+
+  /** 方向別スケール適用 */
+  private applyDirectionalScale(
+    ctx: CanvasRenderingContext2D,
+    _layer: Layer,
+    transform: {
+      anchorPoint: [number, number];
+      position: [number, number];
+      scale: [number, number];
+      rotation: number;
+      opacity: number;
+      directionalScale?: { top?: number; bottom?: number; left?: number; right?: number };
+    },
+  ) {
+    const ds = transform.directionalScale!;
+    const w = this.width;
+    const h = this.height;
+
+    // ベースの位置と回転を適用
+    ctx.translate(transform.position[0], transform.position[1]);
+    ctx.rotate((transform.rotation * Math.PI) / 180);
+
+    // 通常スケールをベースにする
+    let sx = transform.scale[0] / 100;
+    let sy = transform.scale[1] / 100;
+
+    // 方向別スケール計算
+    // 上下が個別の場合: Y軸のスケール = (top% + bottom%) / 200
+    // オフセット = アンカーポイントの比率に応じて位置調整
+    const ap = transform.anchorPoint;
+
+    if (ds.top !== undefined || ds.bottom !== undefined) {
+      const topPct = (ds.top ?? transform.scale[1]) / 100;
+      const bottomPct = (ds.bottom ?? transform.scale[1]) / 100;
+      // 合成スケール: 上半分 + 下半分
+      sy = (topPct + bottomPct) / 2;
+      // 重心オフセット: アンカーからの上下バランス
+      const apRatio = ap[1] / h; // 0=上端, 1=下端
+      const yShift = (bottomPct - topPct) * h / 2 * (1 - 2 * apRatio);
+      ctx.translate(0, yShift);
+    }
+
+    if (ds.left !== undefined || ds.right !== undefined) {
+      const leftPct = (ds.left ?? transform.scale[0]) / 100;
+      const rightPct = (ds.right ?? transform.scale[0]) / 100;
+      sx = (leftPct + rightPct) / 2;
+      const apRatio = ap[0] / w;
+      const xShift = (rightPct - leftPct) * w / 2 * (1 - 2 * apRatio);
+      ctx.translate(xShift, 0);
+    }
+
+    ctx.scale(sx, sy);
+    ctx.translate(-ap[0], -ap[1]);
   }
 
   /** ブレンドモード適用 */
