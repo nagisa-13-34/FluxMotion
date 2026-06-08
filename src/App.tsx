@@ -237,29 +237,26 @@ export default function App() {
   }, [flexModel]);
 
   /** モデル変更後に空タブセットを自動削除 */
-  const onModelChange = useCallback((model: Model, action: Action) => {
-    // MoveNode/DeleteTab 後に空タブセット掃除
-    if (action.type === Actions.MOVE_NODE || action.type === Actions.DELETE_TAB) {
-      // 次のフレームで実行（レンダリング完了後）
-      requestAnimationFrame(() => {
-        const emptyTabsets: string[] = [];
-        model.visitNodes((node) => {
-          if (node.getType() === 'tabset') {
-            const tabset = node as TabSetNode;
-            if (tabset.getChildren().length === 0) {
-              emptyTabsets.push(tabset.getId());
-            }
-          }
-        });
-        for (const id of emptyTabsets) {
-          try {
-            model.doAction(Actions.deleteTabset(id));
-          } catch {
-            // 既に削除済みの場合は無視
+  const onModelChange = useCallback((model: Model, _action: Action) => {
+    // 全アクション後に空タブセット掃除（枠が残らないように）
+    requestAnimationFrame(() => {
+      const emptyTabsets: string[] = [];
+      model.visitNodes((node) => {
+        if (node.getType() === 'tabset') {
+          const tabset = node as TabSetNode;
+          if (tabset.getChildren().length === 0) {
+            emptyTabsets.push(tabset.getId());
           }
         }
       });
-    }
+      for (const id of emptyTabsets) {
+        try {
+          model.doAction(Actions.deleteTabset(id));
+        } catch {
+          // 既に削除済みの場合は無視
+        }
+      }
+    });
   }, []);
 
   return (
