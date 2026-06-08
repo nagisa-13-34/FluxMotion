@@ -63,8 +63,8 @@ function easeOutElastic(t: number, amplitude: number, period: number): number {
   return val - correction;
 }
 
-/** カーブに合わせたビューポート計算 */
-function computeFitView(anchors: AnchorPoint[]): Viewport {
+/** カーブに合わせたビューポート計算 (aspect = canvasW/canvasH) */
+function computeFitView(anchors: AnchorPoint[], aspect: number = 1): Viewport {
   const allPts: Pt[] = [];
   anchors.forEach(a => {
     allPts.push({ x: a.x, y: a.y });
@@ -83,7 +83,8 @@ function computeFitView(anchors: AnchorPoint[]): Viewport {
   while (hi - lo < CELL * 4) { lo -= CELL; hi += CELL; }
 
   const rangeY = hi - lo;
-  const rangeX = rangeY;
+  // アスペクト比に基づいてX rangeを調整 → セルが正方形になる
+  const rangeX = rangeY * aspect;
   return { minX: 0.5 - rangeX / 2, maxX: 0.5 + rangeX / 2, minY: lo, maxY: hi };
 }
 
@@ -267,6 +268,12 @@ export function EasingEditor() {
   const bcHandleHov = useRef<'h' | 'c' | null>(null);
   const selRef = useRef(-1);
   const canvasSz = useRef({ w: 300, h: 200 });
+  /** キャンバスのアスペクト比 (正方形グリッド用) */
+  const canvasAspect = () => {
+    const { w, h } = canvasSz.current;
+    if (h <= 0) return 1;
+    return (w - PAD * 2) / (h - PAD * 2);
+  };
   const curveRef = useRef(curve);
   const mpRef = useRef(multiPoints);
   const curveModeRef = useRef(curveMode);
@@ -586,7 +593,7 @@ export function EasingEditor() {
     }
     const a = genAnchors(curve, multiPoints);
     anchorsRef.current = a;
-    const fit = computeFitView(a);
+    const fit = computeFitView(a, canvasAspect());
     targetView.current = fit;
     currentView.current = { ...fit };
     draw();
@@ -599,6 +606,10 @@ export function EasingEditor() {
     const ro = new ResizeObserver((entries) => {
       for (const e of entries) {
         canvasSz.current = { w: Math.floor(e.contentRect.width), h: Math.floor(e.contentRect.height) };
+        // リサイズ時にアスペクト比を再計算してビューポート更新
+        const fit = computeFitView(anchorsRef.current, canvasAspect());
+        targetView.current = fit;
+        currentView.current = { ...fit };
         draw();
       }
     });
@@ -667,7 +678,7 @@ export function EasingEditor() {
     const kd = (e: KeyboardEvent) => {
       if ((e.target as HTMLElement).tagName === 'INPUT') return;
       if (e.code === 'Space' && !isSpaceDown.current) { e.preventDefault(); isSpaceDown.current = true; }
-      if (e.key === '0') { e.preventDefault(); targetView.current = computeFitView(anchorsRef.current); startAnim(); }
+      if (e.key === '0') { e.preventDefault(); targetView.current = computeFitView(anchorsRef.current, canvasAspect()); startAnim(); }
     };
     const ku = (e: KeyboardEvent) => { if (e.code === 'Space') { isSpaceDown.current = false; isPanning.current = false; } };
     window.addEventListener('keydown', kd);
@@ -837,7 +848,7 @@ export function EasingEditor() {
 
       // ドラッグ中: targetViewとcurrentViewを即座に同期して描画
       // (startAnimは使わない - stale closure回避)
-      const fit = computeFitView(next);
+      const fit = computeFitView(next, canvasAspect());
       targetView.current = fit;
       currentView.current.minX = fit.minX;
       currentView.current.maxX = fit.maxX;
@@ -1050,7 +1061,7 @@ export function EasingEditor() {
     } else {
       // Bezierに戻ったらアンカー再生成 + ビューポート自動フィット
       anchorsRef.current = genAnchors(curveRef.current, mpRef.current);
-      const fit = computeFitView(anchorsRef.current);
+      const fit = computeFitView(anchorsRef.current, canvasAspect());
       targetView.current = fit;
       startAnim();
       requestAnimationFrame(() => draw());

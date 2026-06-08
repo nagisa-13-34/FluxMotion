@@ -1,6 +1,6 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { Layout, Actions } from 'flexlayout-react';
-import type { TabNode, ITabSetRenderValues, TabSetNode, BorderNode, Model, Action } from 'flexlayout-react';
+import type { TabNode, TabSetNode, BorderNode, Model, Action } from 'flexlayout-react';
 import 'flexlayout-react/style/dark.css';
 
 import { MenuBar } from './components/MenuBar/MenuBar';
@@ -215,10 +215,26 @@ export default function App() {
     }
   }, [setRenderCallback]);
 
-  /** タブセットのカスタムレンダリング（最大化ボタンのみ表示） */
-  const onRenderTabSet = useCallback((_node: TabSetNode | BorderNode, _renderValues: ITabSetRenderValues) => {
-    // デフォルトのまま使用
-  }, []);
+  /** パネルタブの右クリックメニュー */
+  const onContextMenu = useCallback((node: TabNode | TabSetNode | BorderNode, event: React.MouseEvent<HTMLElement, MouseEvent>) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    // タブノードの場合のみメニュー表示
+    if (node.getType() === 'tab') {
+      const tabNode = node as TabNode;
+      const panelId = tabNode.getId();
+      const items = [
+        {
+          label: 'パネルを閉じる',
+          action: () => {
+            flexModel.doAction(Actions.deleteTab(panelId));
+          },
+        },
+      ];
+      useUIStore.getState().showContextMenu(event.clientX, event.clientY, items);
+    }
+  }, [flexModel]);
 
   /** モデル変更後に空タブセットを自動削除 */
   const onModelChange = useCallback((model: Model, action: Action) => {
@@ -253,7 +269,7 @@ export default function App() {
         <Layout
           model={flexModel}
           factory={factory}
-          onRenderTabSet={onRenderTabSet}
+          onContextMenu={onContextMenu}
           onModelChange={onModelChange}
           realtimeResize={true}
         />
