@@ -492,37 +492,38 @@ export function Properties() {
 
                   const stepVal = prop.key === 'scale' ? 1 : 0.5;
 
-                  // ヘルパー: 分割行用KFコントロール生成
-                  const makeSplitKfControls = () => {
-                    const splitHasKf = hasKf;
-                    const splitPrevTime = animated ? getPrevKfTime(prop.key) : null;
-                    const splitNextTime = animated ? getNextKfTime(prop.key) : null;
+                  // ヘルパー: 分割行用KFコントロール生成（軸別propKey）
+                  const makeSplitKfControls = (axisPropKey: string, axisValue: number) => {
+                    const axisHasKf = hasKeyframe(axisPropKey);
+                    const axisAnimated = isAnimated(axisPropKey);
+                    const axisPrevTime = axisAnimated ? getPrevKfTime(axisPropKey) : null;
+                    const axisNextTime = axisAnimated ? getNextKfTime(axisPropKey) : null;
                     return (
                       <div className="prop-kf-controls">
-                        {animated && (
-                          <button className={`prop-kf-nav${splitPrevTime !== null ? '' : ' disabled'}`}
-                            onClick={() => splitPrevTime !== null && setCurrentFrame(splitPrevTime)} title="前のキーフレーム">
+                        {axisAnimated && (
+                          <button className={`prop-kf-nav${axisPrevTime !== null ? '' : ' disabled'}`}
+                            onClick={() => axisPrevTime !== null && setCurrentFrame(axisPrevTime)} title="前のキーフレーム">
                             <svg viewBox="0 0 10 12" width="8" height="10"><path d="M8 6L2 2L2 10Z" fill="currentColor" /></svg>
                           </button>
                         )}
                         <button
-                          className={`prop-keyframe-btn${splitHasKf ? ' has-keyframe' : ''}${animated ? ' animated' : ''}`}
+                          className={`prop-keyframe-btn${axisHasKf ? ' has-keyframe' : ''}${axisAnimated ? ' animated' : ''}`}
                           onClick={() => {
-                            if (splitHasKf) { removeKeyframe(selectedLayer.id, prop.key, currentFrame); }
-                            else { handleAddKeyframe(prop.key, displayArr); }
+                            if (axisHasKf) { removeKeyframe(selectedLayer.id, axisPropKey, currentFrame); }
+                            else { handleAddKeyframe(axisPropKey, axisValue); }
                           }}
-                          title={splitHasKf ? 'キーフレーム削除' : 'キーフレーム追加'}
+                          title={axisHasKf ? 'キーフレーム削除' : 'キーフレーム追加'}
                         >
                           <svg viewBox="0 0 14 14" width="12" height="12">
-                            <circle cx="7" cy="8" r="4.5" fill={splitHasKf ? 'var(--color-keyframe)' : 'none'}
-                              stroke={animated ? 'var(--color-keyframe)' : 'currentColor'} strokeWidth="1.2" />
-                            <line x1="7" y1="8" x2="7" y2="5.5" stroke={splitHasKf ? '#fff' : 'currentColor'} strokeWidth="1" />
-                            <line x1="5" y1="2.5" x2="9" y2="2.5" stroke={animated ? 'var(--color-keyframe)' : 'currentColor'} strokeWidth="1" />
+                            <circle cx="7" cy="8" r="4.5" fill={axisHasKf ? 'var(--color-keyframe)' : 'none'}
+                              stroke={axisAnimated ? 'var(--color-keyframe)' : 'currentColor'} strokeWidth="1.2" />
+                            <line x1="7" y1="8" x2="7" y2="5.5" stroke={axisHasKf ? '#fff' : 'currentColor'} strokeWidth="1" />
+                            <line x1="5" y1="2.5" x2="9" y2="2.5" stroke={axisAnimated ? 'var(--color-keyframe)' : 'currentColor'} strokeWidth="1" />
                           </svg>
                         </button>
-                        {animated && (
-                          <button className={`prop-kf-nav${splitNextTime !== null ? '' : ' disabled'}`}
-                            onClick={() => splitNextTime !== null && setCurrentFrame(splitNextTime)} title="次のキーフレーム">
+                        {axisAnimated && (
+                          <button className={`prop-kf-nav${axisNextTime !== null ? '' : ' disabled'}`}
+                            onClick={() => axisNextTime !== null && setCurrentFrame(axisNextTime)} title="次のキーフレーム">
                             <svg viewBox="0 0 10 12" width="8" height="10"><path d="M2 6L8 2L8 10Z" fill="currentColor" /></svg>
                           </button>
                         )}
@@ -562,7 +563,7 @@ export function Properties() {
                           return (
                             <div key={`${prop.key}_${dir}`} className="prop-row prop-row-kf"
                               onContextMenu={(e) => openContextMenu(e, prop.key, displayArr)}>
-                              {makeSplitKfControls()}
+                              {makeSplitKfControls(`${prop.key}.${isXAxis ? 'x' : 'y'}`, displayArr[axisIdx])}
                               <span className={`prop-label scrub${animated ? ' animated' : ''}`}
                                 onMouseDown={(e) => handleDragStart(e, displayArr[axisIdx], (v) => {
                                   const a: [number, number] = [...displayArr];
@@ -595,7 +596,7 @@ export function Properties() {
                         {['X', 'Y'].map((axis, idx) => (
                           <div key={`${prop.key}_${axis}`} className="prop-row prop-row-kf"
                             onContextMenu={(e) => openContextMenu(e, prop.key, displayArr)}>
-                            {makeSplitKfControls()}
+                            {makeSplitKfControls(`${prop.key}.${axis.toLowerCase()}`, displayArr[idx])}
                             <span className={`prop-label scrub${animated ? ' animated' : ''}`}
                               onMouseDown={(e) => handleDragStart(e, displayArr[idx], (v) => {
                                 const a: [number, number] = [...displayArr];

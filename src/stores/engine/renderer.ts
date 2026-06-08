@@ -126,11 +126,29 @@ export class Renderer {
         case 'anchorPoint':
           if (Array.isArray(val)) result.anchorPoint = val as [number, number];
           break;
+        case 'anchorPoint.x':
+          if (typeof val === 'number') result.anchorPoint[0] = val;
+          break;
+        case 'anchorPoint.y':
+          if (typeof val === 'number') result.anchorPoint[1] = val;
+          break;
         case 'position':
           if (Array.isArray(val)) result.position = val as [number, number];
           break;
+        case 'position.x':
+          if (typeof val === 'number') result.position[0] = val;
+          break;
+        case 'position.y':
+          if (typeof val === 'number') result.position[1] = val;
+          break;
         case 'scale':
           if (Array.isArray(val)) result.scale = val as [number, number];
+          break;
+        case 'scale.x':
+          if (typeof val === 'number') result.scale[0] = val;
+          break;
+        case 'scale.y':
+          if (typeof val === 'number') result.scale[1] = val;
           break;
         case 'rotation':
           if (typeof val === 'number') result.rotation = val;
