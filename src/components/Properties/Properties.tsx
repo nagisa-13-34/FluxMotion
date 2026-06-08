@@ -268,26 +268,38 @@ export function Properties() {
     },
     toggleSplit: () => {
       if (!contextMenu) return;
-      const cur = splitDimensions[contextMenu.propKey] || 0;
-      const maxLevel = contextMenu.propKey === 'scale' ? 2 : 1;
+      // 子キー(scale.top等)を親キーにマッピング
+      const parentKey = contextMenu.propKey.includes('.') ? contextMenu.propKey.split('.')[0] : contextMenu.propKey;
+      const cur = splitDimensions[parentKey] || 0;
+      const maxLevel = parentKey === 'scale' ? 2 : 1;
       const next = cur >= maxLevel ? 0 : cur + 1;
       // 段階2に入るとき、現在のスケール値でdirScale初期化
-      if (contextMenu.propKey === 'scale' && next === 2 && selectedLayer) {
+      if (parentKey === 'scale' && next === 2 && selectedLayer) {
         const s = selectedLayer.transform.scale;
         setDirScaleValues({ top: s[1], bottom: s[1], left: s[0], right: s[0] });
       }
-      setSplitDimensions(prev => ({ ...prev, [contextMenu.propKey]: next }));
+      // 段階0に戻すとき、directionalScaleをクリア
+      if (parentKey === 'scale' && next === 0 && selectedLayer) {
+        updateLayer(selectedLayer.id, {
+          transform: { ...selectedLayer.transform, directionalScale: undefined },
+        });
+      }
+      setSplitDimensions(prev => ({ ...prev, [parentKey]: next }));
       setContextMenu(null);
     },
   };
 
-  /** 次元分割対象かどうか */
-  const canSplitDimension = (propKey: string) => ['position', 'scale', 'anchorPoint'].includes(propKey);
+  /** 次元分割対象かどうか（子キーscale.top等も含む） */
+  const canSplitDimension = (propKey: string) => {
+    const parentKey = propKey.includes('.') ? propKey.split('.')[0] : propKey;
+    return ['position', 'scale', 'anchorPoint'].includes(parentKey);
+  };
 
   /** 次元分割メニューテキスト */
   const getSplitLabel = (propKey: string): string => {
-    const level = splitDimensions[propKey] || 0;
-    if (propKey === 'scale') {
+    const parentKey = propKey.includes('.') ? propKey.split('.')[0] : propKey;
+    const level = splitDimensions[parentKey] || 0;
+    if (parentKey === 'scale') {
       if (level === 0) return '次元を分割 (X/Y)';
       if (level === 1) return '次元を分割 (上下左右)';
       return '次元を統合';
@@ -578,7 +590,13 @@ export function Properties() {
                     };
 
                     const handleDirChange = (dirKey: DirKey, kfKey: string, v: number) => {
-                      const newDir = { ...dirScaleValues, [dirKey]: v };
+                      let newDir: typeof dirScaleValues;
+                      if (scaleLinked) {
+                        // リンクON: 全方向を同じ値に
+                        newDir = { top: v, bottom: v, left: v, right: v };
+                      } else {
+                        newDir = { ...dirScaleValues, [dirKey]: v };
+                      }
                       setDirScaleValues(newDir);
                       // transform.directionalScaleを更新（レンダラーが直接参照）
                       updateLayer(selectedLayer.id, {
@@ -588,8 +606,13 @@ export function Properties() {
                         },
                       });
                       // 方向別KFも更新
-                      if (isAnimated(kfKey)) {
-                        handleAddKeyframe(kfKey, v);
+                      if (scaleLinked) {
+                        // リンク時は全方向のKFを更新
+                        for (const d of dirs) {
+                          if (isAnimated(d.kfKey)) handleAddKeyframe(d.kfKey, v);
+                        }
+                      } else {
+                        if (isAnimated(kfKey)) handleAddKeyframe(kfKey, v);
                       }
                     };
 
