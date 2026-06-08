@@ -233,42 +233,44 @@ export class Renderer {
     },
   ) {
     const ds = transform.directionalScale!;
-    const w = this.width;
-    const h = this.height;
+    const ap = transform.anchorPoint;
 
-    // ベースの位置と回転を適用
+    // ベースの位置と回転
     ctx.translate(transform.position[0], transform.position[1]);
     ctx.rotate((transform.rotation * Math.PI) / 180);
 
-    // 通常スケールをベースにする
+    // 方向別スケール計算
+    // ソリッドは(-w/2, -h/2)から(w/2, h/2)に描画される
+    // アンカーオフセット後、描画原点は(-ap.x, -ap.y)
+    // ソリッド中心は(-ap.x + 0, -ap.y + 0) = (-ap.x, -ap.y)
+
     let sx = transform.scale[0] / 100;
     let sy = transform.scale[1] / 100;
-
-    // 方向別スケール計算
-    // 上下が個別の場合: Y軸のスケール = (top% + bottom%) / 200
-    // オフセット = アンカーポイントの比率に応じて位置調整
-    const ap = transform.anchorPoint;
+    let offsetX = 0;
+    let offsetY = 0;
 
     if (ds.top !== undefined || ds.bottom !== undefined) {
-      const topPct = (ds.top ?? transform.scale[1]) / 100;
-      const bottomPct = (ds.bottom ?? transform.scale[1]) / 100;
-      // 合成スケール: 上半分 + 下半分
-      sy = (topPct + bottomPct) / 2;
-      // 重心オフセット: アンカーからの上下バランス
-      const apRatio = ap[1] / h; // 0=上端, 1=下端
-      const yShift = (bottomPct - topPct) * h / 2 * (1 - 2 * apRatio);
-      ctx.translate(0, yShift);
+      const topFactor = (ds.top ?? transform.scale[1]) / 100;
+      const bottomFactor = (ds.bottom ?? transform.scale[1]) / 100;
+      // 合成Y倍率
+      sy = (topFactor + bottomFactor) / 2;
+      // 非対称オフセット: bottom > top → 下に伸びる → 原点を上にずらす
+      // ソリッド中心（アンカー基準）からのズレ
+      // 上端が topFactor で、下端が bottomFactor なので、
+      // 全体の中心は (bottomFactor - topFactor) / (topFactor + bottomFactor) だけずれる
+      // これをスケール前の座標で計算し、描画オフセットとして適用
+      offsetY = (bottomFactor - topFactor) / 2 * (this.height / 2);
     }
 
     if (ds.left !== undefined || ds.right !== undefined) {
-      const leftPct = (ds.left ?? transform.scale[0]) / 100;
-      const rightPct = (ds.right ?? transform.scale[0]) / 100;
-      sx = (leftPct + rightPct) / 2;
-      const apRatio = ap[0] / w;
-      const xShift = (rightPct - leftPct) * w / 2 * (1 - 2 * apRatio);
-      ctx.translate(xShift, 0);
+      const leftFactor = (ds.left ?? transform.scale[0]) / 100;
+      const rightFactor = (ds.right ?? transform.scale[0]) / 100;
+      sx = (leftFactor + rightFactor) / 2;
+      offsetX = (rightFactor - leftFactor) / 2 * (this.width / 2);
     }
 
+    // オフセットを適用してからスケール
+    ctx.translate(offsetX, offsetY);
     ctx.scale(sx, sy);
     ctx.translate(-ap[0], -ap[1]);
   }
