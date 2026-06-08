@@ -49,6 +49,9 @@ export function Properties() {
   // 次元分割（0=統合, 1=X/Y, 2=上下左右 ※スケールのみ）
   const [splitDimensions, setSplitDimensions] = useState<Record<string, number>>({});
 
+  // 方向別スケール値（独立管理）
+  const [dirScaleValues, setDirScaleValues] = useState({ top: 100, bottom: 100, left: 100, right: 100 });
+
   // コンテキストメニュー
   const [contextMenu, setContextMenu] = useState<{
     x: number; y: number; propKey: string; value: number | [number, number];
@@ -268,6 +271,11 @@ export function Properties() {
       const cur = splitDimensions[contextMenu.propKey] || 0;
       const maxLevel = contextMenu.propKey === 'scale' ? 2 : 1;
       const next = cur >= maxLevel ? 0 : cur + 1;
+      // 段階2に入るとき、現在のスケール値でdirScale初期化
+      if (contextMenu.propKey === 'scale' && next === 2 && selectedLayer) {
+        const s = selectedLayer.transform.scale;
+        setDirScaleValues({ top: s[1], bottom: s[1], left: s[0], right: s[0] });
+      }
       setSplitDimensions(prev => ({ ...prev, [contextMenu.propKey]: next }));
       setContextMenu(null);
     },
@@ -552,40 +560,52 @@ export function Properties() {
                     </button>
                   ) : null;
 
-                  // スケール段階2: 上下左右（4行）
+                  // スケール段階2: 上下左右（4行）- 各方向が独立した値
                   if (prop.key === 'scale' && splitLevel === 2) {
-                    const dirs = [
-                      { label: '上', key: 'scale.top', axisIdx: 1 },
-                      { label: '下', key: 'scale.bottom', axisIdx: 1 },
-                      { label: '左', key: 'scale.left', axisIdx: 0 },
-                      { label: '右', key: 'scale.right', axisIdx: 0 },
+                    type DirKey = 'top' | 'bottom' | 'left' | 'right';
+                    const dirs: { label: string; kfKey: string; dirKey: DirKey }[] = [
+                      { label: '上', kfKey: 'scale.top', dirKey: 'top' },
+                      { label: '下', kfKey: 'scale.bottom', dirKey: 'bottom' },
+                      { label: '左', kfKey: 'scale.left', dirKey: 'left' },
+                      { label: '右', kfKey: 'scale.right', dirKey: 'right' },
                     ];
+
+                    // KF補間値があればそちらを優先
+                    const getDirValue = (dirKey: DirKey, kfKey: string): number => {
+                      const resolved = getResolvedValue(kfKey);
+                      if (resolved !== undefined && typeof resolved === 'number') return resolved;
+                      return dirScaleValues[dirKey];
+                    };
+
+                    const handleDirChange = (dirKey: DirKey, kfKey: string, v: number) => {
+                      setDirScaleValues(prev => ({ ...prev, [dirKey]: v }));
+                      // KFが有効ならKFも更新
+                      if (isAnimated(kfKey)) {
+                        handleAddKeyframe(kfKey, v);
+                      }
+                    };
+
                     return (
                       <div key={prop.key}>
-                        {dirs.map((d, i) => (
-                          <div key={d.key} className="prop-row prop-row-kf"
-                            onContextMenu={(e) => openContextMenu(e, d.key, displayArr[d.axisIdx])}>
-                            {makeSplitKfControls(d.key, displayArr[d.axisIdx])}
-                            <span className={`prop-label scrub${isAnimated(d.key) ? ' animated' : ''}`}
-                              onMouseDown={(e) => handleDragStart(e, displayArr[d.axisIdx], (v) => {
-                                const a: [number, number] = [...displayArr];
-                                a[d.axisIdx] = v;
-                                handleValueChange(prop.key, a);
-                              }, { step: stepVal })}
-                            >
-                              {`${prop.label} ${d.label}`}
-                              {i === 0 && scaleChainInline}
-                            </span>
-                            <div className="prop-value">
-                              {numInput(displayArr[d.axisIdx], (v) => {
-                                const a: [number, number] = [...displayArr];
-                                a[d.axisIdx] = v;
-                                handleValueChange(prop.key, a);
-                              }, stepVal)}
-                              {prop.suffix && <span style={{ fontSize: 'var(--font-size-xxs)', color: 'var(--color-text-dim)' }}>{prop.suffix}</span>}
+                        {dirs.map((d, i) => {
+                          const val = getDirValue(d.dirKey, d.kfKey);
+                          return (
+                            <div key={d.kfKey} className="prop-row prop-row-kf"
+                              onContextMenu={(e) => openContextMenu(e, d.kfKey, val)}>
+                              {makeSplitKfControls(d.kfKey, val)}
+                              <span className={`prop-label scrub${isAnimated(d.kfKey) ? ' animated' : ''}`}
+                                onMouseDown={(e) => handleDragStart(e, val, (v) => handleDirChange(d.dirKey, d.kfKey, v), { step: stepVal })}
+                              >
+                                {`${prop.label} ${d.label}`}
+                                {i === 0 && scaleChainInline}
+                              </span>
+                              <div className="prop-value">
+                                {numInput(val, (v) => handleDirChange(d.dirKey, d.kfKey, v), stepVal)}
+                                {prop.suffix && <span style={{ fontSize: 'var(--font-size-xxs)', color: 'var(--color-text-dim)' }}>{prop.suffix}</span>}
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     );
                   }
