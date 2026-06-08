@@ -557,26 +557,27 @@
   flex-shrink: 0;
 }
 
-/* KFナビ矢印 */
+/* KFナビ矢印 (AEスタイル) */
 .prop-kf-nav {
-  width: 12px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: var(--color-text-secondary);
-  font-size: 9px;
+  color: var(--color-text-ae-value);
   padding: 0;
-  transition: color 0.15s;
+  transition: opacity 0.15s;
   line-height: 1;
 }
 .prop-kf-nav:hover {
-  color: var(--color-text-ae-value);
+  opacity: 1;
+  filter: brightness(1.3);
 }
 .prop-kf-nav.disabled {
-  opacity: 0.15;
+  opacity: 0.2;
   cursor: default;
+  filter: none;
 }
 
 /* ---- ストップウォッチ (AE Style) ---- */

@@ -208,7 +208,7 @@ export function Properties() {
               onClick={() => prevTime !== null && setCurrentFrame(prevTime)}
               title="前のキーフレーム"
             >
-              <svg viewBox="0 0 8 10" width="6" height="8"><path d="M6 1L2 5L6 9" fill="none" stroke="currentColor" strokeWidth="1.5" /></svg>
+              <svg viewBox="0 0 10 12" width="8" height="10"><path d="M8 6L2 2L2 10Z" fill="currentColor" /></svg>
             </button>
           )}
           <button
@@ -237,7 +237,7 @@ export function Properties() {
               onClick={() => nextTime !== null && setCurrentFrame(nextTime)}
               title="次のキーフレーム"
             >
-              <svg viewBox="0 0 8 10" width="6" height="8"><path d="M2 1L6 5L2 9" fill="none" stroke="currentColor" strokeWidth="1.5" /></svg>
+              <svg viewBox="0 0 10 12" width="8" height="10"><path d="M2 6L8 2L8 10Z" fill="currentColor" /></svg>
             </button>
           )}
         </div>
@@ -340,7 +340,7 @@ export function Properties() {
                     {animated && (
                       <button className={`prop-kf-nav${prevTime !== null ? '' : ' disabled'}`}
                         onClick={() => prevTime !== null && setCurrentFrame(prevTime)} title="前のキーフレーム">
-                        <svg viewBox="0 0 8 10" width="6" height="8"><path d="M6 1L2 5L6 9" fill="none" stroke="currentColor" strokeWidth="1.5" /></svg>
+                        <svg viewBox="0 0 10 12" width="8" height="10"><path d="M8 6L2 2L2 10Z" fill="currentColor" /></svg>
                       </button>
                     )}
                     <button
@@ -366,7 +366,7 @@ export function Properties() {
                     {animated && (
                       <button className={`prop-kf-nav${nextTime !== null ? '' : ' disabled'}`}
                         onClick={() => nextTime !== null && setCurrentFrame(nextTime)} title="次のキーフレーム">
-                        <svg viewBox="0 0 8 10" width="6" height="8"><path d="M2 1L6 5L2 9" fill="none" stroke="currentColor" strokeWidth="1.5" /></svg>
+                        <svg viewBox="0 0 10 12" width="8" height="10"><path d="M2 6L8 2L8 10Z" fill="currentColor" /></svg>
                       </button>
                     )}
                   </div>
