@@ -492,26 +492,87 @@ export function Properties() {
 
                   const stepVal = prop.key === 'scale' ? 1 : 0.5;
 
+                  // ヘルパー: 分割行用KFコントロール生成
+                  const makeSplitKfControls = () => {
+                    const splitHasKf = hasKf;
+                    const splitPrevTime = animated ? getPrevKfTime(prop.key) : null;
+                    const splitNextTime = animated ? getNextKfTime(prop.key) : null;
+                    return (
+                      <div className="prop-kf-controls">
+                        {animated && (
+                          <button className={`prop-kf-nav${splitPrevTime !== null ? '' : ' disabled'}`}
+                            onClick={() => splitPrevTime !== null && setCurrentFrame(splitPrevTime)} title="前のキーフレーム">
+                            <svg viewBox="0 0 10 12" width="8" height="10"><path d="M8 6L2 2L2 10Z" fill="currentColor" /></svg>
+                          </button>
+                        )}
+                        <button
+                          className={`prop-keyframe-btn${splitHasKf ? ' has-keyframe' : ''}${animated ? ' animated' : ''}`}
+                          onClick={() => {
+                            if (splitHasKf) { removeKeyframe(selectedLayer.id, prop.key, currentFrame); }
+                            else { handleAddKeyframe(prop.key, displayArr); }
+                          }}
+                          title={splitHasKf ? 'キーフレーム削除' : 'キーフレーム追加'}
+                        >
+                          <svg viewBox="0 0 14 14" width="12" height="12">
+                            <circle cx="7" cy="8" r="4.5" fill={splitHasKf ? 'var(--color-keyframe)' : 'none'}
+                              stroke={animated ? 'var(--color-keyframe)' : 'currentColor'} strokeWidth="1.2" />
+                            <line x1="7" y1="8" x2="7" y2="5.5" stroke={splitHasKf ? '#fff' : 'currentColor'} strokeWidth="1" />
+                            <line x1="5" y1="2.5" x2="9" y2="2.5" stroke={animated ? 'var(--color-keyframe)' : 'currentColor'} strokeWidth="1" />
+                          </svg>
+                        </button>
+                        {animated && (
+                          <button className={`prop-kf-nav${splitNextTime !== null ? '' : ' disabled'}`}
+                            onClick={() => splitNextTime !== null && setCurrentFrame(splitNextTime)} title="次のキーフレーム">
+                            <svg viewBox="0 0 10 12" width="8" height="10"><path d="M2 6L8 2L8 10Z" fill="currentColor" /></svg>
+                          </button>
+                        )}
+                      </div>
+                    );
+                  };
+
+                  // スケールチェーンアイコン（分割時のラベル横）
+                  const scaleChainInline = prop.key === 'scale' ? (
+                    <button
+                      className={`prop-link-btn${scaleLinked ? ' linked' : ''}`}
+                      onClick={(e) => { e.stopPropagation(); setScaleLinked(!scaleLinked); }}
+                      onMouseDown={(e) => e.stopPropagation()}
+                      title={scaleLinked ? '縦横比を解除' : '縦横比を固定'}
+                    >
+                      <svg viewBox="0 0 14 14" width="12" height="12">
+                        {scaleLinked ? (<>
+                          <rect x="2" y="3" width="10" height="3" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.2" />
+                          <rect x="2" y="8" width="10" height="3" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.2" />
+                          <line x1="7" y1="6" x2="7" y2="8" stroke="currentColor" strokeWidth="1.2" />
+                        </>) : (<>
+                          <rect x="2" y="3" width="10" height="3" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.2" />
+                          <rect x="2" y="8" width="10" height="3" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.2" />
+                        </>)}
+                      </svg>
+                    </button>
+                  ) : null;
+
                   // スケール段階2: 上下左右（4行）
                   if (prop.key === 'scale' && splitLevel === 2) {
                     const dirs = ['上', '下', '左', '右'];
-                    // 上/下=Y, 左/右=X として同じ値で初期化（個別制御は今後拡張）
                     return (
                       <div key={prop.key}>
                         {dirs.map((dir, i) => {
-                          const isXAxis = i >= 2; // 左右はX
+                          const isXAxis = i >= 2;
                           const axisIdx = isXAxis ? 0 : 1;
                           return (
                             <div key={`${prop.key}_${dir}`} className="prop-row prop-row-kf"
                               onContextMenu={(e) => openContextMenu(e, prop.key, displayArr)}>
-                              {i === 0 ? kfControls : <div className="prop-kf-controls" />}
+                              {makeSplitKfControls()}
                               <span className={`prop-label scrub${animated ? ' animated' : ''}`}
                                 onMouseDown={(e) => handleDragStart(e, displayArr[axisIdx], (v) => {
                                   const a: [number, number] = [...displayArr];
                                   a[axisIdx] = v;
                                   handleValueChange(prop.key, a);
                                 }, { step: stepVal })}
-                              >{`${prop.label} ${dir}`}</span>
+                              >
+                                {`${prop.label} ${dir}`}
+                                {i === 0 && scaleChainInline}
+                              </span>
                               <div className="prop-value">
                                 {numInput(displayArr[axisIdx], (v) => {
                                   const a: [number, number] = [...displayArr];
@@ -534,14 +595,17 @@ export function Properties() {
                         {['X', 'Y'].map((axis, idx) => (
                           <div key={`${prop.key}_${axis}`} className="prop-row prop-row-kf"
                             onContextMenu={(e) => openContextMenu(e, prop.key, displayArr)}>
-                            {idx === 0 ? kfControls : <div className="prop-kf-controls" />}
+                            {makeSplitKfControls()}
                             <span className={`prop-label scrub${animated ? ' animated' : ''}`}
                               onMouseDown={(e) => handleDragStart(e, displayArr[idx], (v) => {
                                 const a: [number, number] = [...displayArr];
                                 a[idx] = v;
                                 handleValueChange(prop.key, a);
                               }, { step: stepVal })}
-                            >{`${prop.label} ${axis}`}</span>
+                            >
+                              {`${prop.label} ${axis}`}
+                              {idx === 0 && scaleChainInline}
+                            </span>
                             <div className="prop-value">
                               {numInput(displayArr[idx], (v) => {
                                 const a: [number, number] = [...displayArr];
