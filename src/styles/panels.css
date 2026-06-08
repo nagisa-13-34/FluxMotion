@@ -729,7 +729,7 @@
 .prop-link-btn {
   width: 14px;
   height: 14px;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
@@ -737,6 +737,8 @@
   flex-shrink: 0;
   transition: color 0.15s;
   padding: 0;
+  margin-left: 4px;
+  vertical-align: middle;
 }
 .prop-link-btn:hover {
   color: var(--color-text-primary);

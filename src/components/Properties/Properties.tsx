@@ -46,8 +46,8 @@ export function Properties() {
   // スケールリンク
   const [scaleLinked, setScaleLinked] = useState(true);
 
-  // 次元分割（位置/スケール/アンカーポイント）
-  const [splitDimensions, setSplitDimensions] = useState<Record<string, boolean>>({});
+  // 次元分割（0=統合, 1=X/Y, 2=上下左右 ※スケールのみ）
+  const [splitDimensions, setSplitDimensions] = useState<Record<string, number>>({});
 
   // コンテキストメニュー
   const [contextMenu, setContextMenu] = useState<{
@@ -265,13 +265,27 @@ export function Properties() {
     },
     toggleSplit: () => {
       if (!contextMenu) return;
-      setSplitDimensions(prev => ({ ...prev, [contextMenu.propKey]: !prev[contextMenu.propKey] }));
+      const cur = splitDimensions[contextMenu.propKey] || 0;
+      const maxLevel = contextMenu.propKey === 'scale' ? 2 : 1;
+      const next = cur >= maxLevel ? 0 : cur + 1;
+      setSplitDimensions(prev => ({ ...prev, [contextMenu.propKey]: next }));
       setContextMenu(null);
     },
   };
 
   /** 次元分割対象かどうか */
   const canSplitDimension = (propKey: string) => ['position', 'scale', 'anchorPoint'].includes(propKey);
+
+  /** 次元分割メニューテキスト */
+  const getSplitLabel = (propKey: string): string => {
+    const level = splitDimensions[propKey] || 0;
+    if (propKey === 'scale') {
+      if (level === 0) return '次元を分割 (X/Y)';
+      if (level === 1) return '次元を分割 (上下左右)';
+      return '次元を統合';
+    }
+    return level === 0 ? '次元を分割' : '次元を統合';
+  };
 
   /** KFボタン付き数値プロパティ行（ナビ矢印+ドラッグスクラブ対応） */
   const renderKfNumericRow = (
@@ -462,37 +476,78 @@ export function Properties() {
                 if (prop.type === 'xy') {
                   const defaultArr = rawValue as [number, number];
                   const displayArr = getDisplayValue(prop.key, defaultArr) as [number, number];
-                  const isSplit = splitDimensions[prop.key];
+                  const splitLevel = splitDimensions[prop.key] || 0;
 
-                  // 次元分割モード: X/Yを個別行に
-                  if (isSplit) {
+                  // ヘルパー: 数値入力 (readOnly + ドラッグ + ダブルクリック)
+                  const numInput = (val: number, onChange: (v: number) => void, step: number, w?: string) => (
+                    <input type="number" value={Math.round(val * 10) / 10}
+                      onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
+                      readOnly
+                      onMouseDown={(e) => { if (!e.currentTarget.readOnly) return; handleDragStart(e, val, onChange, { step }); }}
+                      onDoubleClick={(e) => { e.currentTarget.readOnly = false; e.currentTarget.focus(); e.currentTarget.select(); }}
+                      onBlur={(e) => { e.currentTarget.readOnly = true; }}
+                      onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+                      step={step} style={w ? { width: w } : undefined} />
+                  );
+
+                  const stepVal = prop.key === 'scale' ? 1 : 0.5;
+
+                  // スケール段階2: 上下左右（4行）
+                  if (prop.key === 'scale' && splitLevel === 2) {
+                    const dirs = ['上', '下', '左', '右'];
+                    // 上/下=Y, 左/右=X として同じ値で初期化（個別制御は今後拡張）
+                    return (
+                      <div key={prop.key}>
+                        {dirs.map((dir, i) => {
+                          const isXAxis = i >= 2; // 左右はX
+                          const axisIdx = isXAxis ? 0 : 1;
+                          return (
+                            <div key={`${prop.key}_${dir}`} className="prop-row prop-row-kf"
+                              onContextMenu={(e) => openContextMenu(e, prop.key, displayArr)}>
+                              {i === 0 ? kfControls : <div className="prop-kf-controls" />}
+                              <span className={`prop-label scrub${animated ? ' animated' : ''}`}
+                                onMouseDown={(e) => handleDragStart(e, displayArr[axisIdx], (v) => {
+                                  const a: [number, number] = [...displayArr];
+                                  a[axisIdx] = v;
+                                  handleValueChange(prop.key, a);
+                                }, { step: stepVal })}
+                              >{`${prop.label} ${dir}`}</span>
+                              <div className="prop-value">
+                                {numInput(displayArr[axisIdx], (v) => {
+                                  const a: [number, number] = [...displayArr];
+                                  a[axisIdx] = v;
+                                  handleValueChange(prop.key, a);
+                                }, stepVal)}
+                                {prop.suffix && <span style={{ fontSize: 'var(--font-size-xxs)', color: 'var(--color-text-dim)' }}>{prop.suffix}</span>}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  }
+
+                  // 段階1: X/Y分割
+                  if (splitLevel === 1) {
                     return (
                       <div key={prop.key}>
                         {['X', 'Y'].map((axis, idx) => (
                           <div key={`${prop.key}_${axis}`} className="prop-row prop-row-kf"
                             onContextMenu={(e) => openContextMenu(e, prop.key, displayArr)}>
                             {idx === 0 ? kfControls : <div className="prop-kf-controls" />}
-                            <span
-                              className={`prop-label scrub${animated ? ' animated' : ''}`}
+                            <span className={`prop-label scrub${animated ? ' animated' : ''}`}
                               onMouseDown={(e) => handleDragStart(e, displayArr[idx], (v) => {
-                                const newArr: [number, number] = [...displayArr];
-                                newArr[idx] = v;
-                                handleValueChange(prop.key, newArr);
-                              }, { step: prop.key === 'scale' ? 1 : 0.5 })}
+                                const a: [number, number] = [...displayArr];
+                                a[idx] = v;
+                                handleValueChange(prop.key, a);
+                              }, { step: stepVal })}
                             >{`${prop.label} ${axis}`}</span>
                             <div className="prop-value">
-                              <input type="number" value={Math.round(displayArr[idx] * 10) / 10}
-                                onChange={(e) => {
-                                  const newArr: [number, number] = [...displayArr];
-                                  newArr[idx] = parseFloat(e.target.value) || 0;
-                                  handleValueChange(prop.key, newArr);
-                                }}
-                                readOnly
-                                onMouseDown={(e) => { if (!e.currentTarget.readOnly) return; handleDragStart(e, displayArr[idx], (v) => { const a: [number, number] = [...displayArr]; a[idx] = v; handleValueChange(prop.key, a); }, { step: prop.key === 'scale' ? 1 : 0.5 }); }}
-                                onDoubleClick={(e) => { e.currentTarget.readOnly = false; e.currentTarget.focus(); e.currentTarget.select(); }}
-                                onBlur={(e) => { e.currentTarget.readOnly = true; }}
-                                onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
-                                step={prop.key === 'scale' ? 1 : 0.5} />
+                              {numInput(displayArr[idx], (v) => {
+                                const a: [number, number] = [...displayArr];
+                                a[idx] = v;
+                                handleValueChange(prop.key, a);
+                              }, stepVal)}
                               {prop.suffix && <span style={{ fontSize: 'var(--font-size-xxs)', color: 'var(--color-text-dim)' }}>{prop.suffix}</span>}
                             </div>
                           </div>
@@ -501,48 +556,41 @@ export function Properties() {
                     );
                   }
 
+                  // 段階0: 統合（通常表示）
                   return (
                     <div key={prop.key} className="prop-row prop-row-kf"
                       onContextMenu={(e) => openContextMenu(e, prop.key, displayArr)}>
                       {kfControls}
                       <span
                         className={`prop-label scrub${animated ? ' animated' : ''}`}
-                        onMouseDown={(e) => handleDragStart(e, displayArr[0], (v) => handleValueChange(prop.key, [v, displayArr[1]]), { step: prop.key === 'scale' ? 1 : 0.5 })}
+                        onMouseDown={(e) => handleDragStart(e, displayArr[0], (v) => handleValueChange(prop.key, [v, displayArr[1]]), { step: stepVal })}
                         title="ドラッグで値を変更"
-                      >{prop.label}</span>
-                      <div className="prop-value">
-                        <input type="number" value={Math.round(displayArr[0] * 10) / 10}
-                          onChange={(e) => handleValueChange(prop.key, [parseFloat(e.target.value) || 0, displayArr[1]])}
-                          readOnly
-                          onMouseDown={(e) => { if (!e.currentTarget.readOnly) return; handleDragStart(e, displayArr[0], (v) => handleValueChange(prop.key, [v, displayArr[1]]), { step: prop.key === 'scale' ? 1 : 0.5 }); }}
-                          onDoubleClick={(e) => { e.currentTarget.readOnly = false; e.currentTarget.focus(); e.currentTarget.select(); }}
-                          onBlur={(e) => { e.currentTarget.readOnly = true; }}
-                          onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
-                          step={prop.key === 'scale' ? 1 : 0.5} style={{ width: '50%' }} />
-                        {/* スケールリンクアイコン */}
+                      >
+                        {prop.label}
+                        {/* スケールリンクアイコン（ラベル横） */}
                         {prop.key === 'scale' && (
                           <button
                             className={`prop-link-btn${scaleLinked ? ' linked' : ''}`}
-                            onClick={() => setScaleLinked(!scaleLinked)}
+                            onClick={(e) => { e.stopPropagation(); setScaleLinked(!scaleLinked); }}
+                            onMouseDown={(e) => e.stopPropagation()}
                             title={scaleLinked ? '縦横比を解除' : '縦横比を固定'}
                           >
-                            <svg viewBox="0 0 12 12" width="10" height="10">
-                              {scaleLinked ? (
-                                <path d="M3 4V2h6v2M3 8v2h6V8M6 4v4" stroke="currentColor" strokeWidth="1.2" fill="none" />
-                              ) : (
-                                <path d="M3 4V2h6v2M3 8v2h6V8M6 4v1M6 7v1" stroke="currentColor" strokeWidth="1.2" fill="none" strokeDasharray="1 1" />
-                              )}
+                            <svg viewBox="0 0 14 14" width="12" height="12">
+                              {scaleLinked ? (<>
+                                <rect x="2" y="3" width="10" height="3" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.2" />
+                                <rect x="2" y="8" width="10" height="3" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.2" />
+                                <line x1="7" y1="6" x2="7" y2="8" stroke="currentColor" strokeWidth="1.2" />
+                              </>) : (<>
+                                <rect x="2" y="3" width="10" height="3" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.2" />
+                                <rect x="2" y="8" width="10" height="3" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.2" />
+                              </>)}
                             </svg>
                           </button>
                         )}
-                        <input type="number" value={Math.round(displayArr[1] * 10) / 10}
-                          onChange={(e) => handleValueChange(prop.key, [displayArr[0], parseFloat(e.target.value) || 0])}
-                          readOnly
-                          onMouseDown={(e) => { if (!e.currentTarget.readOnly) return; handleDragStart(e, displayArr[1], (v) => handleValueChange(prop.key, [displayArr[0], v]), { step: prop.key === 'scale' ? 1 : 0.5 }); }}
-                          onDoubleClick={(e) => { e.currentTarget.readOnly = false; e.currentTarget.focus(); e.currentTarget.select(); }}
-                          onBlur={(e) => { e.currentTarget.readOnly = true; }}
-                          onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
-                          step={prop.key === 'scale' ? 1 : 0.5} style={{ width: '50%' }} />
+                      </span>
+                      <div className="prop-value">
+                        {numInput(displayArr[0], (v) => handleValueChange(prop.key, [v, displayArr[1]]), stepVal, '50%')}
+                        {numInput(displayArr[1], (v) => handleValueChange(prop.key, [displayArr[0], v]), stepVal, '50%')}
                       </div>
                     </div>
                   );
@@ -938,7 +986,7 @@ export function Properties() {
               <>
                 <div className="context-divider" />
                 <button onClick={contextMenuActions.toggleSplit}>
-                  {splitDimensions[contextMenu.propKey] ? '次元を統合' : '次元を分割'}
+                  {getSplitLabel(contextMenu.propKey)}
                 </button>
               </>
             )}
