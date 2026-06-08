@@ -32,14 +32,20 @@ export interface TextStyle {
   color: string;
   textAlign: 'left' | 'center' | 'right';
   lineHeight: number;
+  /** 文字間隔（px） */
+  letterSpacing: number;
 }
 
 /** シェイプレイヤー用のデータ */
 export interface ShapeData {
   shapeType: ShapeType;
   fill: string;
+  /** 塗りの不透明度（0-100） */
+  fillOpacity: number;
   stroke: string;
   strokeWidth: number;
+  /** 線端の形状 */
+  strokeLineCap: 'butt' | 'round' | 'square';
   /** 矩形の角丸 */
   cornerRadius?: number;
   /** パスのポイント */

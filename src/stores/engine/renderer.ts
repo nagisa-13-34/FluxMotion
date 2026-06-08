@@ -190,6 +190,11 @@ export class Renderer {
     ctx.textAlign = style.textAlign;
     ctx.textBaseline = 'middle';
 
+    // letterSpacing 対応（Canvas2D letterSpacingプロパティ / Chrome 99+）
+    if (style.letterSpacing && 'letterSpacing' in ctx) {
+      (ctx as any).letterSpacing = `${style.letterSpacing}px`;
+    }
+
     const lines = style.text.split('\n');
     const lineHeight = style.fontSize * style.lineHeight;
     const totalHeight = lines.length * lineHeight;
@@ -198,6 +203,11 @@ export class Renderer {
     lines.forEach((line, i) => {
       ctx.fillText(line, 0, startY + i * lineHeight);
     });
+
+    // letterSpacingリセット
+    if ('letterSpacing' in ctx) {
+      (ctx as any).letterSpacing = '0px';
+    }
   }
 
   /** シェイプレイヤー描画 */
@@ -205,21 +215,27 @@ export class Renderer {
     if (!layer.shapeData) return;
     const shape = layer.shapeData;
 
+    // fillOpacityを考慮した塗り色
+    const fillOpacity = (shape.fillOpacity ?? 100) / 100;
     ctx.fillStyle = shape.fill;
-    if (shape.stroke !== 'transparent') {
+    ctx.globalAlpha *= fillOpacity;
+
+    const hasStroke = shape.stroke !== 'transparent' && shape.strokeWidth > 0;
+    if (hasStroke) {
       ctx.strokeStyle = shape.stroke;
       ctx.lineWidth = shape.strokeWidth;
+      ctx.lineCap = shape.strokeLineCap ?? 'butt';
     }
 
     switch (shape.shapeType) {
       case 'rectangle':
-        this.renderRectangle(ctx, shape.cornerRadius || 0, shape.stroke !== 'transparent');
+        this.renderRectangle(ctx, shape.cornerRadius || 0, hasStroke);
         break;
       case 'ellipse':
-        this.renderEllipse(ctx, shape.stroke !== 'transparent');
+        this.renderEllipse(ctx, hasStroke);
         break;
       case 'star':
-        this.renderStar(ctx, 5, 100, 45, shape.stroke !== 'transparent');
+        this.renderStar(ctx, 5, 100, 45, hasStroke);
         break;
     }
   }

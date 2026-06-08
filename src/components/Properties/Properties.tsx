@@ -1,3 +1,4 @@
+import type React from 'react';
 import { useState, useCallback } from 'react';
 import { useLayerStore } from '../../stores/layerStore';
 import { useTimelineStore } from '../../stores/timelineStore';
@@ -13,6 +14,17 @@ const TRANSFORM_PROPS = [
   { key: 'rotation', label: '回転', type: 'number' as const, suffix: '°' },
   { key: 'opacity', label: '不透明度', type: 'number' as const, suffix: '%', min: 0, max: 100 },
 ];
+
+/** セレクトボックスの共通スタイル */
+const selectStyle: React.CSSProperties = {
+  background: 'var(--color-bg-input)',
+  border: '1px solid var(--color-border)',
+  borderRadius: 'var(--radius-sm)',
+  padding: '2px 4px',
+  fontSize: 'var(--font-size-xs)',
+  color: 'var(--color-text-primary)',
+  width: '100%',
+};
 
 export function Properties() {
   const layers = useLayerStore((s) => s.layers);
@@ -331,17 +343,59 @@ export function Properties() {
             </div>
             {openGroups.text && (
               <>
+                {/* テキスト内容 */}
                 <div className="prop-row" style={{ gridTemplateColumns: '24px 1fr' }}>
                   <div />
-                  <span style={{
-                    fontSize: 'var(--font-size-xxs)',
-                    color: 'var(--color-text-dim)',
-                    fontStyle: 'italic',
-                    padding: '4px 0',
-                  }}>
-                    プレビュー上でダブルクリックして編集
-                  </span>
+                  <textarea
+                    value={selectedLayer.textStyle.text}
+                    onChange={(e) =>
+                      updateLayer(selectedLayer.id, {
+                        textStyle: { ...selectedLayer.textStyle!, text: e.target.value },
+                      })
+                    }
+                    rows={3}
+                    style={{
+                      background: 'var(--color-bg-input)',
+                      border: '1px solid var(--color-border)',
+                      borderRadius: 'var(--radius-sm)',
+                      padding: '4px 6px',
+                      fontSize: 'var(--font-size-xs)',
+                      color: 'var(--color-text-primary)',
+                      resize: 'vertical',
+                      fontFamily: 'inherit',
+                      width: '100%',
+                    }}
+                  />
                 </div>
+                {/* フォントファミリー */}
+                <div className="prop-row">
+                  <div />
+                  <span className="prop-label">フォント</span>
+                  <div className="prop-value">
+                    <input
+                      type="text"
+                      value={selectedLayer.textStyle.fontFamily}
+                      onChange={(e) =>
+                        updateLayer(selectedLayer.id, {
+                          textStyle: { ...selectedLayer.textStyle!, fontFamily: e.target.value },
+                        })
+                      }
+                      style={{ width: '100%' }}
+                      list="font-list"
+                    />
+                    <datalist id="font-list">
+                      <option value="Inter" />
+                      <option value="Roboto" />
+                      <option value="Noto Sans JP" />
+                      <option value="Arial" />
+                      <option value="Helvetica" />
+                      <option value="Georgia" />
+                      <option value="Times New Roman" />
+                      <option value="monospace" />
+                    </datalist>
+                  </div>
+                </div>
+                {/* フォントサイズ */}
                 <div className="prop-row">
                   <div />
                   <span className="prop-label">サイズ</span>
@@ -362,6 +416,33 @@ export function Properties() {
                     </span>
                   </div>
                 </div>
+                {/* フォントウェイト */}
+                <div className="prop-row">
+                  <div />
+                  <span className="prop-label">太さ</span>
+                  <div className="prop-value">
+                    <select
+                      value={selectedLayer.textStyle.fontWeight}
+                      onChange={(e) =>
+                        updateLayer(selectedLayer.id, {
+                          textStyle: { ...selectedLayer.textStyle!, fontWeight: parseInt(e.target.value) },
+                        })
+                      }
+                      style={selectStyle}
+                    >
+                      <option value={100}>Thin (100)</option>
+                      <option value={200}>ExtraLight (200)</option>
+                      <option value={300}>Light (300)</option>
+                      <option value={400}>Regular (400)</option>
+                      <option value={500}>Medium (500)</option>
+                      <option value={600}>SemiBold (600)</option>
+                      <option value={700}>Bold (700)</option>
+                      <option value={800}>ExtraBold (800)</option>
+                      <option value={900}>Black (900)</option>
+                    </select>
+                  </div>
+                </div>
+                {/* 文字色 */}
                 <div className="prop-row">
                   <div />
                   <span className="prop-label">色</span>
@@ -376,6 +457,79 @@ export function Properties() {
                       }
                       className="color-swatch"
                     />
+                    <span style={{ fontSize: 'var(--font-size-xxs)', color: 'var(--color-text-muted)', fontFamily: 'var(--font-mono)' }}>
+                      {selectedLayer.textStyle.color}
+                    </span>
+                  </div>
+                </div>
+                {/* 行間 */}
+                <div className="prop-row">
+                  <div />
+                  <span className="prop-label">行間</span>
+                  <div className="prop-value">
+                    <input
+                      type="number"
+                      value={selectedLayer.textStyle.lineHeight}
+                      onChange={(e) =>
+                        updateLayer(selectedLayer.id, {
+                          textStyle: { ...selectedLayer.textStyle!, lineHeight: parseFloat(e.target.value) || 1 },
+                        })
+                      }
+                      min={0.5}
+                      max={5}
+                      step={0.1}
+                    />
+                  </div>
+                </div>
+                {/* 文字間隔 */}
+                <div className="prop-row">
+                  <div />
+                  <span className="prop-label">文字間隔</span>
+                  <div className="prop-value">
+                    <input
+                      type="number"
+                      value={selectedLayer.textStyle.letterSpacing}
+                      onChange={(e) =>
+                        updateLayer(selectedLayer.id, {
+                          textStyle: { ...selectedLayer.textStyle!, letterSpacing: parseFloat(e.target.value) || 0 },
+                        })
+                      }
+                      step={0.5}
+                    />
+                    <span style={{ fontSize: 'var(--font-size-xxs)', color: 'var(--color-text-dim)', alignSelf: 'center' }}>
+                      px
+                    </span>
+                  </div>
+                </div>
+                {/* テキスト揃え */}
+                <div className="prop-row">
+                  <div />
+                  <span className="prop-label">揃え</span>
+                  <div className="prop-value" style={{ gap: 2 }}>
+                    {(['left', 'center', 'right'] as const).map((align) => (
+                      <button
+                        key={align}
+                        onClick={() =>
+                          updateLayer(selectedLayer.id, {
+                            textStyle: { ...selectedLayer.textStyle!, textAlign: align },
+                          })
+                        }
+                        style={{
+                          flex: 1,
+                          padding: '3px',
+                          border: '1px solid var(--color-border)',
+                          borderRadius: 'var(--radius-xs)',
+                          background: selectedLayer.textStyle!.textAlign === align ? 'var(--color-accent-light)' : 'var(--color-bg-input)',
+                          color: selectedLayer.textStyle!.textAlign === align ? 'var(--color-accent)' : 'var(--color-text-muted)',
+                          cursor: 'pointer',
+                          fontSize: 'var(--font-size-xxs)',
+                          fontWeight: 600,
+                        }}
+                        title={align === 'left' ? '左揃え' : align === 'center' ? '中央揃え' : '右揃え'}
+                      >
+                        {align === 'left' ? '◁' : align === 'center' ? '◇' : '▷'}
+                      </button>
+                    ))}
                   </div>
                 </div>
               </>
@@ -425,6 +579,7 @@ export function Properties() {
             </div>
             {openGroups.shape && (
               <>
+                {/* シェイプタイプ */}
                 <div className="prop-row">
                   <div />
                   <span className="prop-label">タイプ</span>
@@ -436,15 +591,7 @@ export function Properties() {
                           shapeData: { ...selectedLayer.shapeData!, shapeType: e.target.value as any },
                         })
                       }
-                      style={{
-                        background: 'var(--color-bg-input)',
-                        border: '1px solid var(--color-border)',
-                        borderRadius: 'var(--radius-sm)',
-                        padding: '2px 4px',
-                        fontSize: 'var(--font-size-xs)',
-                        color: 'var(--color-text-primary)',
-                        width: '100%',
-                      }}
+                      style={selectStyle}
                     >
                       <option value="rectangle">矩形</option>
                       <option value="ellipse">楕円</option>
@@ -452,6 +599,7 @@ export function Properties() {
                     </select>
                   </div>
                 </div>
+                {/* 塗り色 */}
                 <div className="prop-row">
                   <div />
                   <span className="prop-label">塗り</span>
@@ -466,12 +614,174 @@ export function Properties() {
                       }
                       className="color-swatch"
                     />
+                    <span style={{ fontSize: 'var(--font-size-xxs)', color: 'var(--color-text-muted)', fontFamily: 'var(--font-mono)' }}>
+                      {selectedLayer.shapeData.fill}
+                    </span>
                   </div>
                 </div>
+                {/* 塗り不透明度 */}
+                <div className="prop-row">
+                  <div />
+                  <span className="prop-label">塗り不透明度</span>
+                  <div className="prop-value">
+                    <input
+                      type="number"
+                      value={selectedLayer.shapeData.fillOpacity ?? 100}
+                      onChange={(e) =>
+                        updateLayer(selectedLayer.id, {
+                          shapeData: { ...selectedLayer.shapeData!, fillOpacity: parseFloat(e.target.value) || 100 },
+                        })
+                      }
+                      min={0}
+                      max={100}
+                      step={1}
+                    />
+                    <span style={{ fontSize: 'var(--font-size-xxs)', color: 'var(--color-text-dim)', alignSelf: 'center' }}>%</span>
+                  </div>
+                </div>
+                {/* 線色 */}
+                <div className="prop-row">
+                  <div />
+                  <span className="prop-label">線色</span>
+                  <div className="prop-value">
+                    <input
+                      type="color"
+                      value={selectedLayer.shapeData.stroke === 'transparent' ? '#000000' : selectedLayer.shapeData.stroke}
+                      onChange={(e) =>
+                        updateLayer(selectedLayer.id, {
+                          shapeData: { ...selectedLayer.shapeData!, stroke: e.target.value },
+                        })
+                      }
+                      className="color-swatch"
+                    />
+                    <span style={{ fontSize: 'var(--font-size-xxs)', color: 'var(--color-text-muted)', fontFamily: 'var(--font-mono)' }}>
+                      {selectedLayer.shapeData.stroke}
+                    </span>
+                  </div>
+                </div>
+                {/* 線幅 */}
+                <div className="prop-row">
+                  <div />
+                  <span className="prop-label">線幅</span>
+                  <div className="prop-value">
+                    <input
+                      type="number"
+                      value={selectedLayer.shapeData.strokeWidth}
+                      onChange={(e) =>
+                        updateLayer(selectedLayer.id, {
+                          shapeData: { ...selectedLayer.shapeData!, strokeWidth: parseFloat(e.target.value) || 0 },
+                        })
+                      }
+                      min={0}
+                      step={0.5}
+                    />
+                    <span style={{ fontSize: 'var(--font-size-xxs)', color: 'var(--color-text-dim)', alignSelf: 'center' }}>px</span>
+                  </div>
+                </div>
+                {/* 線端 */}
+                <div className="prop-row">
+                  <div />
+                  <span className="prop-label">線端</span>
+                  <div className="prop-value">
+                    <select
+                      value={selectedLayer.shapeData.strokeLineCap ?? 'butt'}
+                      onChange={(e) =>
+                        updateLayer(selectedLayer.id, {
+                          shapeData: { ...selectedLayer.shapeData!, strokeLineCap: e.target.value as any },
+                        })
+                      }
+                      style={selectStyle}
+                    >
+                      <option value="butt">Butt</option>
+                      <option value="round">Round</option>
+                      <option value="square">Square</option>
+                    </select>
+                  </div>
+                </div>
+                {/* 角丸（矩形のみ） */}
+                {selectedLayer.shapeData.shapeType === 'rectangle' && (
+                  <div className="prop-row">
+                    <div />
+                    <span className="prop-label">角丸</span>
+                    <div className="prop-value">
+                      <input
+                        type="number"
+                        value={selectedLayer.shapeData.cornerRadius ?? 0}
+                        onChange={(e) =>
+                          updateLayer(selectedLayer.id, {
+                            shapeData: { ...selectedLayer.shapeData!, cornerRadius: parseFloat(e.target.value) || 0 },
+                          })
+                        }
+                        min={0}
+                        step={1}
+                      />
+                      <span style={{ fontSize: 'var(--font-size-xxs)', color: 'var(--color-text-dim)', alignSelf: 'center' }}>px</span>
+                    </div>
+                  </div>
+                )}
               </>
             )}
           </div>
         )}
+
+        {/* レイヤー共通プロパティ */}
+        <div className="prop-group">
+          <div className="prop-group-header" onClick={() => toggleGroup('layer')}>
+            <svg className={`chevron${openGroups.layer ? ' open' : ''}`} viewBox="0 0 24 24" fill="currentColor">
+              <path d="M10 6l6 6-6 6V6z" />
+            </svg>
+            レイヤー
+          </div>
+          {openGroups.layer && (
+            <>
+              {/* ブレンドモード */}
+              <div className="prop-row">
+                <div />
+                <span className="prop-label">ブレンド</span>
+                <div className="prop-value">
+                  <select
+                    value={selectedLayer.blendMode}
+                    onChange={(e) =>
+                      updateLayer(selectedLayer.id, { blendMode: e.target.value as any })
+                    }
+                    style={selectStyle}
+                  >
+                    <option value="normal">通常</option>
+                    <option value="multiply">乗算</option>
+                    <option value="screen">スクリーン</option>
+                    <option value="overlay">オーバーレイ</option>
+                    <option value="add">加算</option>
+                    <option value="darken">比較（暗）</option>
+                    <option value="lighten">比較（明）</option>
+                  </select>
+                </div>
+              </div>
+              {/* 親レイヤー */}
+              <div className="prop-row">
+                <div />
+                <span className="prop-label">親</span>
+                <div className="prop-value">
+                  <select
+                    value={selectedLayer.parentId || ''}
+                    onChange={(e) =>
+                      updateLayer(selectedLayer.id, { parentId: e.target.value || null })
+                    }
+                    style={selectStyle}
+                  >
+                    <option value="">なし</option>
+                    {layers
+                      .filter((l) => l.id !== selectedLayer.id)
+                      .map((l) => (
+                        <option key={l.id} value={l.id}>
+                          {l.name}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

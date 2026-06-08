@@ -114,14 +114,17 @@ export const useLayerStore = create<LayerState>((set, get) => ({
           color: '#FFFFFF',
           textAlign: 'center' as const,
           lineHeight: 1.2,
+          letterSpacing: 0,
         },
       } : {}),
       ...(type === 'shape' ? {
         shapeData: {
           shapeType: 'rectangle' as const,
           fill: '#A29BFE',
+          fillOpacity: 100,
           stroke: 'transparent',
           strokeWidth: 0,
+          strokeLineCap: 'butt' as const,
           cornerRadius: 0,
         },
       } : {}),
