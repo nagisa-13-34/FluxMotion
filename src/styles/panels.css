@@ -67,13 +67,19 @@
   background: transparent !important;
 }
 
-/* スプリッター（完全透明） */
-.flexlayout__splitter {
+/* スプリッター（完全透明・全ステート） */
+.flexlayout__splitter,
+.flexlayout__splitter:hover,
+.flexlayout__splitter_drag,
+.flexlayout__splitter_extra {
   background: transparent !important;
 }
 
-.flexlayout__splitter:hover {
-  background: transparent !important;
+/* タブセット選択時のアクセントボーダーも非表示 */
+.flexlayout__tabset-selected {
+  box-shadow: none !important;
+  outline: none !important;
+  border-color: transparent !important;
 }
 
 /* ドラッグ時のドロップインジケーター */
