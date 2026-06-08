@@ -156,11 +156,13 @@ export function Properties() {
           }}
           title={hasKf ? 'キーフレーム削除' : 'キーフレーム追加'}
         >
-          <svg viewBox="0 0 12 12" width="10" height="10">
-            <rect x="3" y="3" width="6" height="6" transform="rotate(45 6 6)"
+          <svg viewBox="0 0 14 14" width="12" height="12">
+            <circle cx="7" cy="8" r="4.5"
               fill={hasKf ? 'var(--color-keyframe)' : 'none'}
-              stroke={animated ? 'var(--color-keyframe)' : 'currentColor'} strokeWidth="1.5"
+              stroke={animated ? 'var(--color-keyframe)' : 'currentColor'} strokeWidth="1.2"
             />
+            <line x1="7" y1="8" x2="7" y2="5.5" stroke={hasKf ? '#fff' : 'currentColor'} strokeWidth="1" />
+            <line x1="5" y1="2.5" x2="9" y2="2.5" stroke={animated ? 'var(--color-keyframe)' : 'currentColor'} strokeWidth="1" />
           </svg>
         </button>
         <span className={`prop-label${animated ? ' animated' : ''}`}>{label}</span>
@@ -207,17 +209,8 @@ export function Properties() {
   return (
     <div className="properties">
       <div className="panel-header">
-        <svg className="panel-header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-        </svg>
-        プロパティ
-        <span style={{
-          fontSize: 'var(--font-size-xxs)',
-          color: 'var(--color-text-muted)',
-          marginLeft: 'auto',
-        }}>
-          {selectedLayer.name}
-        </span>
+        プロパティ: {selectedLayer.name}
+        <span style={{ marginLeft: 'auto', cursor: 'pointer', fontSize: 'var(--font-size-sm)', opacity: 0.5 }}>≡</span>
       </div>
       <div className="panel-content">
         {/* レイヤー基本情報 */}
@@ -290,7 +283,15 @@ export function Properties() {
             <svg className={`chevron${openGroups.transform ? ' open' : ''}`} viewBox="0 0 24 24" fill="currentColor">
               <path d="M10 6l6 6-6 6V6z" />
             </svg>
-            トランスフォーム
+            レイヤートランスフォーム
+            <span className="reset-btn" onClick={(e) => {
+              e.stopPropagation();
+              updateTransform(selectedLayer.id, 'anchorPoint', [0, 0]);
+              updateTransform(selectedLayer.id, 'position', [960, 540]);
+              updateTransform(selectedLayer.id, 'scale', [100, 100]);
+              updateTransform(selectedLayer.id, 'rotation', 0);
+              updateTransform(selectedLayer.id, 'opacity', 100);
+            }}>リセット</span>
           </div>
           {openGroups.transform && (
             <>
@@ -315,11 +316,13 @@ export function Properties() {
                         }}
                         title={hasKf ? 'キーフレーム削除' : 'キーフレーム追加'}
                       >
-                        <svg viewBox="0 0 12 12" width="10" height="10">
-                          <rect x="3" y="3" width="6" height="6" transform="rotate(45 6 6)"
+                        <svg viewBox="0 0 14 14" width="12" height="12">
+                          <circle cx="7" cy="8" r="4.5"
                             fill={hasKf ? 'var(--color-keyframe)' : 'none'}
-                            stroke={animated ? 'var(--color-keyframe)' : 'currentColor'} strokeWidth="1.5"
+                            stroke={animated ? 'var(--color-keyframe)' : 'currentColor'} strokeWidth="1.2"
                           />
+                          <line x1="7" y1="8" x2="7" y2="5.5" stroke={hasKf ? '#fff' : 'currentColor'} strokeWidth="1" />
+                          <line x1="5" y1="2.5" x2="9" y2="2.5" stroke={animated ? 'var(--color-keyframe)' : 'currentColor'} strokeWidth="1" />
                         </svg>
                       </button>
                       <span className={`prop-label${animated ? ' animated' : ''}`}>{prop.label}</span>
@@ -370,11 +373,13 @@ export function Properties() {
                       }}
                       title={hasKf ? 'キーフレーム削除' : 'キーフレーム追加'}
                     >
-                      <svg viewBox="0 0 12 12" width="10" height="10">
-                        <rect x="3" y="3" width="6" height="6" transform="rotate(45 6 6)"
+                      <svg viewBox="0 0 14 14" width="12" height="12">
+                        <circle cx="7" cy="8" r="4.5"
                           fill={hasKf ? 'var(--color-keyframe)' : 'none'}
-                          stroke={animated ? 'var(--color-keyframe)' : 'currentColor'} strokeWidth="1.5"
+                          stroke={animated ? 'var(--color-keyframe)' : 'currentColor'} strokeWidth="1.2"
                         />
+                        <line x1="7" y1="8" x2="7" y2="5.5" stroke={hasKf ? '#fff' : 'currentColor'} strokeWidth="1" />
+                        <line x1="5" y1="2.5" x2="9" y2="2.5" stroke={animated ? 'var(--color-keyframe)' : 'currentColor'} strokeWidth="1" />
                       </svg>
                     </button>
                     <span className={`prop-label${animated ? ' animated' : ''}`}>{prop.label}</span>
