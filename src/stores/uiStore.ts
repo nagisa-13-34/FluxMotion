@@ -31,6 +31,7 @@ const DEFAULT_LAYOUT: IJsonModel = {
     tabEnableClose: true,
     tabSetEnableClose: false,
     tabEnableRename: false,
+    tabSetEnableDeleteWhenEmpty: true,
   },
   borders: [
     {
