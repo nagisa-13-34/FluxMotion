@@ -87,7 +87,15 @@
 /* ボーダーパネル（Toolbar等） */
 .flexlayout__border {
   background: var(--color-bg-darker) !important;
-  border-right: 1px solid var(--color-border) !important;
+}
+
+/* ボーダーのスプリッター（普段は透明、ホバー時のみ表示） */
+.flexlayout__splitter_border {
+  background: transparent !important;
+}
+
+.flexlayout__splitter_border:hover {
+  background: var(--color-accent) !important;
 }
 
 .flexlayout__border_button {
