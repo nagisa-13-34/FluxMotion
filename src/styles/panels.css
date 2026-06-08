@@ -2,32 +2,127 @@
    Panel Layout Styles
    ============================================================ */
 
-/* ---- Main App Layout ---- */
-.app-layout {
-  display: grid;
-  grid-template-rows: var(--menubar-height) 1fr var(--timeline-height) auto;
-  grid-template-columns: var(--toolbar-width) 1fr var(--properties-width);
-  grid-template-areas:
-    "menu    menu      menu"
-    "toolbar viewport  properties"
-    "toolbar timeline  timeline"
-    "toolbar easing    easing";
+/* ---- Main App Shell (MenuBar + Dock Area) ---- */
+.app-shell {
+  display: flex;
+  flex-direction: column;
   height: 100vh;
   width: 100vw;
   background: var(--color-bg-darkest);
-  gap: 1px;
+  overflow: hidden;
 }
 
-/* ---- Easing Editor Standalone Panel ---- */
-.easing-panel-standalone {
-  grid-area: easing;
+/* ---- Dock Container (FlexLayout が占める領域) ---- */
+.dock-container {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
 }
 
-.easing-resize-handle:hover {
-  background: rgba(255, 255, 255, 0.05) !important;
+/* ============================================================
+   FlexLayout Dark Theme Overrides
+   FluxMotion のデザインシステムに合わせる
+   ============================================================ */
+
+/* タブのスタイル */
+.flexlayout__tab {
+  background: var(--color-bg-panel) !important;
+  overflow: hidden;
 }
-.easing-resize-handle:active {
+
+/* タブセットヘッダー */
+.flexlayout__tabset_header {
+  background: var(--color-bg-dark) !important;
+  border-bottom: 1px solid var(--color-border) !important;
+}
+
+/* タブストリップ（タブバー） */
+.flexlayout__tabset-selected {
+  background: var(--color-bg-panel) !important;
+}
+
+.flexlayout__tab_button--selected {
+  background: var(--color-bg-panel) !important;
+  color: var(--color-text-primary) !important;
+}
+
+.flexlayout__tab_button {
+  color: var(--color-text-muted) !important;
+  font-size: var(--font-size-xs) !important;
+  font-family: var(--font-family) !important;
+}
+
+.flexlayout__tab_button:hover {
+  background: var(--color-bg-hover) !important;
+  color: var(--color-text-primary) !important;
+}
+
+/* タブセットのタブストリップ */
+.flexlayout__tabset_tabbar_outer {
+  background: var(--color-bg-darker) !important;
+  border-bottom: 1px solid var(--color-border) !important;
+}
+
+.flexlayout__tabset_tabbar_inner {
+  background: transparent !important;
+}
+
+/* スプリッター */
+.flexlayout__splitter {
+  background: var(--color-bg-darkest) !important;
+}
+
+.flexlayout__splitter:hover {
+  background: var(--color-accent) !important;
+  transition: background var(--transition-fast);
+}
+
+/* ドラッグ時のドロップインジケーター */
+.flexlayout__outline_rect {
+  border: 2px solid var(--color-accent) !important;
   background: rgba(108, 92, 231, 0.15) !important;
+  border-radius: var(--radius-sm);
+}
+
+/* ボーダーパネル（Toolbar等） */
+.flexlayout__border {
+  background: var(--color-bg-darker) !important;
+  border-right: 1px solid var(--color-border) !important;
+}
+
+.flexlayout__border_button {
+  color: var(--color-text-muted) !important;
+  font-size: var(--font-size-xs) !important;
+}
+
+.flexlayout__border_button--selected {
+  color: var(--color-accent) !important;
+}
+
+/* ドラッグ中のタブゴースト */
+.flexlayout__tab_floating {
+  border: 1px solid var(--color-accent) !important;
+  box-shadow: var(--shadow-dropdown) !important;
+  border-radius: var(--radius-sm);
+}
+
+/* タブの閉じるボタン */
+.flexlayout__tab_button_trailing {
+  opacity: 0.4;
+}
+
+.flexlayout__tab_button_trailing:hover {
+  opacity: 1;
+}
+
+/* 最大化ボタン */
+.flexlayout__tab_toolbar_button {
+  color: var(--color-text-muted) !important;
+}
+
+.flexlayout__tab_toolbar_button:hover {
+  color: var(--color-text-primary) !important;
+  background: var(--color-bg-hover) !important;
 }
 
 /* ---- Panel Base ---- */
@@ -69,14 +164,16 @@
 
 /* ---- Menu Bar ---- */
 .menubar {
-  grid-area: menu;
   display: flex;
   align-items: center;
+  height: var(--menubar-height);
+  min-height: var(--menubar-height);
   background: var(--color-bg-darker);
   border-bottom: 1px solid var(--color-border);
   padding: 0 var(--space-sm);
   gap: 0;
   z-index: 100;
+  flex-shrink: 0;
 }
 
 .menubar-logo {
@@ -130,14 +227,15 @@
 
 /* ---- Toolbar ---- */
 .toolbar {
-  grid-area: toolbar;
   display: flex;
   flex-direction: column;
   align-items: center;
   padding: var(--space-sm) 0;
   gap: var(--space-xxs);
   background: var(--color-bg-darker);
-  border-right: 1px solid var(--color-border);
+  width: 100%;
+  height: 100%;
+  overflow-y: auto;
 }
 
 .tool-btn {
@@ -174,11 +272,12 @@
 
 /* ---- Viewport / Preview ---- */
 .viewport {
-  grid-area: viewport;
   display: flex;
   flex-direction: column;
   background: var(--color-bg-darkest);
   overflow: hidden;
+  width: 100%;
+  height: 100%;
 }
 
 .viewport-canvas-container {
@@ -250,9 +349,8 @@
   cursor: not-allowed;
 }
 
-/* ---- Right Panel Container ---- */
+/* ---- Right Panel Container (legacy, FlexLayout内ではunused) ---- */
 .right-panels {
-  grid-area: properties;
   display: flex;
   flex-direction: column;
   border-left: 1px solid var(--color-border);
@@ -314,6 +412,8 @@
   flex: 1;
   min-height: 0;
   overflow: auto;
+  width: 100%;
+  height: 100%;
 }
 
 /* ---- Easing Editor ---- */
@@ -324,6 +424,8 @@
   flex: 1;
   min-height: 0;
   overflow: hidden;
+  width: 100%;
+  height: 100%;
 }
 
 .prop-group {

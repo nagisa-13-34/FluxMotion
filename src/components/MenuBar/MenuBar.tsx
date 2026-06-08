@@ -165,11 +165,48 @@ export function MenuBar() {
                   <div
                     className="dropdown-item"
                     onClick={() => {
-                      useUIStore.getState().toggleEasingEditor();
+                      useUIStore.getState().openPanel('preview');
                       setActiveMenu(null);
                     }}
                   >
-                    {useUIStore.getState().isEasingEditorOpen ? '✓ ' : '　'}イージングエディター
+                    プレビュー
+                  </div>
+                  <div
+                    className="dropdown-item"
+                    onClick={() => {
+                      useUIStore.getState().openPanel('timeline');
+                      setActiveMenu(null);
+                    }}
+                  >
+                    タイムライン
+                  </div>
+                  <div
+                    className="dropdown-item"
+                    onClick={() => {
+                      useUIStore.getState().openPanel('properties');
+                      setActiveMenu(null);
+                    }}
+                  >
+                    プロパティ
+                  </div>
+                  <div
+                    className="dropdown-item"
+                    onClick={() => {
+                      useUIStore.getState().openPanel('easing');
+                      setActiveMenu(null);
+                    }}
+                  >
+                    イージングエディター
+                  </div>
+                  <div className="dropdown-separator" />
+                  <div
+                    className="dropdown-item"
+                    onClick={() => {
+                      useUIStore.getState().resetLayout();
+                      setActiveMenu(null);
+                    }}
+                  >
+                    レイアウトをリセット
                   </div>
                 </>
               )}

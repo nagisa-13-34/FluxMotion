@@ -765,10 +765,7 @@ export function Timeline() {
                                   {
                                     label: 'イージングを編集',
                                     action: () => {
-                                      const uiState = useUIStore.getState();
-                                      if (!uiState.isEasingEditorOpen) {
-                                        uiState.toggleEasingEditor();
-                                      }
+                                      useUIStore.getState().openPanel('easing');
                                     },
                                   },
                                 ]);

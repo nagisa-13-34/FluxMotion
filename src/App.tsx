@@ -1,4 +1,8 @@
 import { useEffect, useRef, useCallback } from 'react';
+import { Layout } from 'flexlayout-react';
+import type { TabNode, ITabSetRenderValues, TabSetNode, BorderNode } from 'flexlayout-react';
+import 'flexlayout-react/style/dark.css';
+
 import { MenuBar } from './components/MenuBar/MenuBar';
 import { Toolbar } from './components/Toolbar/Toolbar';
 import { Preview } from './components/Preview/Preview';
@@ -8,7 +12,7 @@ import { EasingEditor } from './components/EasingEditor/EasingEditor';
 import { ContextMenu } from './components/common/ContextMenu';
 import { useTimelineStore } from './stores/timelineStore';
 import { useProjectStore } from './stores/projectStore';
-import { useUIStore } from './stores/uiStore';
+import { useUIStore, PANEL_IDS } from './stores/uiStore';
 import { useLayerStore } from './stores/layerStore';
 import { AnimationLoop } from './stores/engine/animation';
 import { EASING_PRESETS } from './types/keyframe';
@@ -25,6 +29,9 @@ export default function App() {
   const setRenderCallback = useCallback((cb: () => void) => {
     renderCallbackRef.current = cb;
   }, []);
+
+  // FlexLayout Model
+  const flexModel = useUIStore((s) => s.getFlexModel)();
 
   // アニメーションループ管理
   useEffect(() => {
@@ -117,12 +124,10 @@ export default function App() {
           case 'd':
             e.preventDefault();
             if (e.shiftKey) {
-              // Ctrl+Shift+D: 分割
               useLayerStore.getState().splitLayer(
                 useTimelineStore.getState().currentFrame
               );
             } else {
-              // Ctrl+D: 複製
               useLayerStore.getState().duplicateSelected();
             }
             renderCallbackRef.current?.();
@@ -140,22 +145,18 @@ export default function App() {
           renderCallbackRef.current?.();
           break;
         case 'KeyU': {
-          // U: 選択レイヤーを展開 + キーフレーム付きプロパティのみ表示（AE準拠）
           const uiState = useUIStore.getState();
           const layerState = useLayerStore.getState();
           const selectedIds = layerState.selectedLayerIds;
           if (selectedIds.length === 0) break;
 
-          // 全選択レイヤーが既に展開済み＆showOnlyKeyframedがオンなら → 折りたたむ
           const allExpanded = selectedIds.every(id => uiState.expandedLayerIds.includes(id));
           if (allExpanded && uiState.showOnlyKeyframed) {
-            // 折りたたむ
             for (const id of selectedIds) {
               uiState.toggleExpandLayer(id);
             }
             uiState.setShowOnlyKeyframed(false);
           } else {
-            // 展開してキーフレーム付きのみ表示
             uiState.setShowOnlyKeyframed(true);
             for (const id of selectedIds) {
               if (!uiState.expandedLayerIds.includes(id)) {
@@ -166,7 +167,6 @@ export default function App() {
           break;
         }
         case 'KeyI': {
-          // I: 選択レイヤーの全トランスフォームに現在フレームのKFを一括追加
           e.preventDefault();
           const ls = useLayerStore.getState();
           const ts = useTimelineStore.getState();
@@ -195,162 +195,42 @@ export default function App() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [togglePlay, totalFrames]);
-  const panels = useUIStore((s) => s.panels);
-  const movePanel = useUIStore((s) => s.movePanel);
-  const draggingPanelId = useUIStore((s) => s.draggingPanelId);
-  const setDraggingPanel = useUIStore((s) => s.setDraggingPanel);
-  const isEasingEditorOpen = useUIStore((s) => s.isEasingEditorOpen);
-  const easingPanelHeight = useUIStore((s) => s.easingPanelHeight);
-  const setEasingPanelHeight = useUIStore((s) => s.setEasingPanelHeight);
-  const toggleEasingEditor = useUIStore((s) => s.toggleEasingEditor);
 
-  // パネルIDからコンポーネントへのマップ（イージングは独立パネルに移動）
-  const panelComponents: Record<string, React.JSX.Element> = {
-    properties: <Properties />,
-  };
-
-  // パネルのドラッグ開始
-  const handlePanelDragStart = (panelId: string) => {
-    setDraggingPanel(panelId);
-  };
-  const handlePanelDragEnd = () => {
-    setDraggingPanel(null);
-  };
-  const handlePanelDrop = (targetPanelId: string) => {
-    if (!draggingPanelId || draggingPanelId === targetPanelId) return;
-    // 位置を入れ替え
-    const dragPanel = panels.find((p) => p.id === draggingPanelId);
-    const targetPanel = panels.find((p) => p.id === targetPanelId);
-    if (dragPanel && targetPanel) {
-      movePanel(draggingPanelId, targetPanel.position);
-      movePanel(targetPanelId, dragPanel.position);
+  /** FlexLayout ファクトリー: パネルIDに応じたコンポーネントを返す */
+  const factory = useCallback((node: TabNode) => {
+    const component = node.getComponent();
+    switch (component) {
+      case PANEL_IDS.PREVIEW:
+        return <Preview onRenderReady={setRenderCallback} />;
+      case PANEL_IDS.TIMELINE:
+        return <Timeline />;
+      case PANEL_IDS.PROPERTIES:
+        return <Properties />;
+      case PANEL_IDS.EASING:
+        return <EasingEditor />;
+      case PANEL_IDS.TOOLBAR:
+        return <Toolbar />;
+      default:
+        return <div style={{ padding: 16, color: 'var(--color-text-muted)' }}>Unknown: {component}</div>;
     }
-    setDraggingPanel(null);
-  };
+  }, [setRenderCallback]);
 
-  // 右パネルの表示順（イージングは独立パネルなので除外）
-  const rightTop = panels.filter((p) => p.position === 'right-top' && p.id !== 'easing');
-  const rightBottom = panels.filter((p) => p.position === 'right-bottom' && p.id !== 'easing');
-
-  const renderPanel = (panel: typeof panels[0]) => (
-    <div
-      key={panel.id}
-      className={`panel-draggable${draggingPanelId === panel.id ? ' dragging' : ''}`}
-      onDragOver={(e) => e.preventDefault()}
-      onDrop={() => handlePanelDrop(panel.id)}
-    >
-      <div
-        className="panel-drag-handle"
-        draggable
-        onDragStart={() => handlePanelDragStart(panel.id)}
-        onDragEnd={handlePanelDragEnd}
-        title="ドラッグで並べ替え"
-      >
-        <svg viewBox="0 0 24 24" fill="currentColor" width="10" height="10">
-          <circle cx="8" cy="6" r="1.5" /><circle cx="16" cy="6" r="1.5" />
-          <circle cx="8" cy="12" r="1.5" /><circle cx="16" cy="12" r="1.5" />
-          <circle cx="8" cy="18" r="1.5" /><circle cx="16" cy="18" r="1.5" />
-        </svg>
-        <span>{panel.label}</span>
-      </div>
-      {panelComponents[panel.id]}
-    </div>
-  );
-
-  // EasingEditorパネルのリサイズハンドル
-  const handleEasingResize = (e: React.MouseEvent) => {
-    e.preventDefault();
-    const startY = e.clientY;
-    const startH = easingPanelHeight;
-    const onMove = (me: MouseEvent) => {
-      setEasingPanelHeight(startH - (me.clientY - startY));
-    };
-    const onUp = () => {
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
-    };
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
-  };
+  /** タブセットのカスタムレンダリング（最大化ボタンのみ表示） */
+  const onRenderTabSet = useCallback((_node: TabSetNode | BorderNode, _renderValues: ITabSetRenderValues) => {
+    // デフォルトのまま使用
+  }, []);
 
   return (
-    <div className="app-layout" onClick={() => hideContextMenu()}>
+    <div className="app-shell" onClick={() => hideContextMenu()}>
       <MenuBar />
-      <Toolbar />
-      <Preview
-        onRenderReady={setRenderCallback}
-      />
-      <div className="right-panels">
-        {rightTop.map(renderPanel)}
-        {rightBottom.map(renderPanel)}
+      <div className="dock-container">
+        <Layout
+          model={flexModel}
+          factory={factory}
+          onRenderTabSet={onRenderTabSet}
+          realtimeResize={true}
+        />
       </div>
-      <Timeline />
-      {isEasingEditorOpen && (
-        <div
-          className="easing-panel-standalone"
-          style={{
-            height: easingPanelHeight,
-            borderTop: '1px solid var(--color-border)',
-            display: 'flex',
-            flexDirection: 'column',
-            flexShrink: 0,
-            gridColumn: '2 / -1',
-            background: 'var(--color-bg-panel)',
-          }}
-        >
-          {/* リサイズハンドル */}
-          <div
-            className="easing-resize-handle"
-            style={{
-              height: 4,
-              cursor: 'ns-resize',
-              background: 'transparent',
-              flexShrink: 0,
-              position: 'relative',
-            }}
-            onMouseDown={handleEasingResize}
-          >
-            <div style={{
-              position: 'absolute',
-              top: 1,
-              left: '50%',
-              transform: 'translateX(-50%)',
-              width: 32,
-              height: 2,
-              borderRadius: 1,
-              background: 'rgba(255, 255, 255, 0.15)',
-            }} />
-          </div>
-          {/* 閉じるボタン付きヘッダーラッパー */}
-          <div style={{ position: 'relative', flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            <button
-              onClick={toggleEasingEditor}
-              style={{
-                position: 'absolute',
-                top: 6,
-                right: 36,
-                zIndex: 10,
-                width: 18,
-                height: 18,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                border: 'none',
-                background: 'transparent',
-                color: 'var(--color-text-dim)',
-                cursor: 'pointer',
-                borderRadius: 'var(--radius-xs)',
-                fontSize: 14,
-                lineHeight: 1,
-              }}
-              title="イージングエディターを閉じる"
-            >
-              ✕
-            </button>
-            <EasingEditor />
-          </div>
-        </div>
-      )}
       <ContextMenu />
     </div>
   );

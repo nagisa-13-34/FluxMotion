@@ -1,25 +1,145 @@
 import { create } from 'zustand';
+import { Model, Actions, DockLocation } from 'flexlayout-react';
+import type { IJsonModel } from 'flexlayout-react';
 
 export type ToolType = 'select' | 'hand' | 'text' | 'shape' | 'pen';
 
-/** パネル配置 */
-export type PanelPosition = 'left' | 'right-top' | 'right-bottom' | 'bottom';
-export interface PanelLayout {
-  id: string;
-  label: string;
-  position: PanelPosition;
-}
+/** パネルID定数 */
+export const PANEL_IDS = {
+  PREVIEW: 'preview',
+  TIMELINE: 'timeline',
+  PROPERTIES: 'properties',
+  EASING: 'easing',
+  TOOLBAR: 'toolbar',
+} as const;
 
-const DEFAULT_PANELS: PanelLayout[] = [
-  { id: 'properties', label: 'プロパティ', position: 'right-top' },
-  { id: 'easing', label: 'イージング', position: 'right-bottom' },
-];
+/** パネル表示名 */
+export const PANEL_LABELS: Record<string, string> = {
+  [PANEL_IDS.PREVIEW]: 'プレビュー',
+  [PANEL_IDS.TIMELINE]: 'タイムライン',
+  [PANEL_IDS.PROPERTIES]: 'プロパティ',
+  [PANEL_IDS.EASING]: 'イージング',
+  [PANEL_IDS.TOOLBAR]: 'ツールバー',
+};
+
+/** FlexLayout のデフォルト JSON モデル */
+const DEFAULT_LAYOUT: IJsonModel = {
+  global: {
+    tabSetEnableMaximize: true,
+    tabSetMinWidth: 100,
+    tabSetMinHeight: 80,
+    tabEnableClose: true,
+    tabSetEnableClose: false,
+    tabEnableRename: false,
+  },
+  borders: [
+    {
+      type: 'border',
+      location: 'left',
+      size: 40,
+      selected: 0,
+      children: [
+        {
+          type: 'tab',
+          id: PANEL_IDS.TOOLBAR,
+          name: 'ツール',
+          component: PANEL_IDS.TOOLBAR,
+          enableClose: false,
+          enableDrag: true,
+        },
+      ],
+    },
+  ],
+  layout: {
+    type: 'row',
+    weight: 100,
+    children: [
+      {
+        type: 'row',
+        weight: 70,
+        children: [
+          {
+            type: 'tabset',
+            weight: 70,
+            id: 'tabset-preview',
+            children: [
+              {
+                type: 'tab',
+                id: PANEL_IDS.PREVIEW,
+                name: 'プレビュー',
+                component: PANEL_IDS.PREVIEW,
+                enableClose: false,
+              },
+            ],
+          },
+          {
+            type: 'tabset',
+            weight: 30,
+            id: 'tabset-timeline',
+            children: [
+              {
+                type: 'tab',
+                id: PANEL_IDS.TIMELINE,
+                name: 'タイムライン',
+                component: PANEL_IDS.TIMELINE,
+                enableClose: false,
+              },
+            ],
+          },
+        ],
+      },
+      {
+        type: 'row',
+        weight: 30,
+        children: [
+          {
+            type: 'tabset',
+            weight: 60,
+            id: 'tabset-properties',
+            children: [
+              {
+                type: 'tab',
+                id: PANEL_IDS.PROPERTIES,
+                name: 'プロパティ',
+                component: PANEL_IDS.PROPERTIES,
+                enableClose: false,
+              },
+            ],
+          },
+          {
+            type: 'tabset',
+            weight: 40,
+            id: 'tabset-easing',
+            children: [
+              {
+                type: 'tab',
+                id: PANEL_IDS.EASING,
+                name: 'イージング',
+                component: PANEL_IDS.EASING,
+                enableClose: true,
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+};
+
+/** FlexLayout Model (モジュールレベルで保持) */
+let flexModel: Model = Model.fromJson(DEFAULT_LAYOUT);
+
+export interface ContextMenuItem {
+  label: string;
+  shortcut?: string;
+  action: () => void;
+  separator?: boolean;
+  disabled?: boolean;
+}
 
 interface UIState {
   /** 選択中のツール */
   activeTool: ToolType;
-  /** プロパティパネルの表示 */
-  showProperties: boolean;
   /** メニューの開閉状態 */
   activeMenu: string | null;
   /** コンテキストメニュー */
@@ -35,52 +155,32 @@ interface UIState {
   showOnlyKeyframed: boolean;
   /** タイムラインで展開中のレイヤーID */
   expandedLayerIds: string[];
-  /** パネルレイアウト */
-  panels: PanelLayout[];
-  /** ドラッグ中のパネルID */
-  draggingPanelId: string | null;
-  /** イージングエディターパネルの開閉 */
-  isEasingEditorOpen: boolean;
-  /** イージングエディターパネルの高さ（px） */
-  easingPanelHeight: number;
 
   setTool: (tool: ToolType) => void;
-  toggleProperties: () => void;
   setActiveMenu: (menu: string | null) => void;
   showContextMenu: (x: number, y: number, items: ContextMenuItem[]) => void;
   hideContextMenu: () => void;
   setViewportZoom: (zoom: number) => void;
   setShowOnlyKeyframed: (v: boolean) => void;
   toggleExpandLayer: (id: string) => void;
-  movePanel: (panelId: string, newPosition: PanelPosition) => void;
-  setDraggingPanel: (id: string | null) => void;
-  toggleEasingEditor: () => void;
-  setEasingPanelHeight: (h: number) => void;
-}
 
-export interface ContextMenuItem {
-  label: string;
-  shortcut?: string;
-  action: () => void;
-  separator?: boolean;
-  disabled?: boolean;
+  /** FlexLayout Model を取得 */
+  getFlexModel: () => Model;
+  /** レイアウトをデフォルトにリセット */
+  resetLayout: () => void;
+  /** パネルを開く（閉じていた場合） */
+  openPanel: (panelId: string) => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
   activeTool: 'select',
-  showProperties: true,
   activeMenu: null,
   contextMenu: { show: false, x: 0, y: 0, items: [] },
   viewportZoom: 50,
   showOnlyKeyframed: false,
   expandedLayerIds: [],
-  panels: DEFAULT_PANELS,
-  draggingPanelId: null,
-  isEasingEditorOpen: false,
-  easingPanelHeight: 260,
 
   setTool: (tool) => set({ activeTool: tool }),
-  toggleProperties: () => set((s) => ({ showProperties: !s.showProperties })),
   setActiveMenu: (menu) => set({ activeMenu: menu }),
 
   showContextMenu: (x, y, items) =>
@@ -100,18 +200,37 @@ export const useUIStore = create<UIState>((set) => ({
         : [...s.expandedLayerIds, id],
     })),
 
-  movePanel: (panelId, newPosition) =>
-    set((s) => ({
-      panels: s.panels.map((p) =>
-        p.id === panelId ? { ...p, position: newPosition } : p
+  getFlexModel: () => flexModel,
+
+  resetLayout: () => {
+    flexModel = Model.fromJson(DEFAULT_LAYOUT);
+    // ストアを更新して再レンダリングをトリガー
+    set({});
+  },
+
+  openPanel: (panelId: string) => {
+    // 既にモデル内にあるか確認
+    const existing = flexModel.getNodeById(panelId);
+    if (existing) return; // 既に表示中
+
+    // パネルをデフォルトの場所に追加
+    const targetTabset = panelId === PANEL_IDS.EASING ? 'tabset-properties' : 'tabset-preview';
+    const label = PANEL_LABELS[panelId] || panelId;
+    flexModel.doAction(
+      Actions.addNode(
+        {
+          type: 'tab',
+          id: panelId,
+          name: label,
+          component: panelId,
+          enableClose: true,
+        },
+        targetTabset,
+        DockLocation.CENTER,
+        -1,
+        true,
       ),
-    })),
-
-  setDraggingPanel: (id) => set({ draggingPanelId: id }),
-
-  toggleEasingEditor: () =>
-    set((s) => ({ isEasingEditorOpen: !s.isEasingEditorOpen })),
-
-  setEasingPanelHeight: (h) =>
-    set({ easingPanelHeight: Math.max(180, Math.min(600, h)) }),
+    );
+    set({});
+  },
 }));
