@@ -349,6 +349,12 @@ export function Properties() {
 
       setSplitDimensions(prev => ({ ...prev, [parentKey]: next }));
       setContextMenu(null);
+
+      // スケール分割時はscaleRatioを現在の値から自動更新
+      if (parentKey === 'scale' && scaleLinked && selectedLayer) {
+        const s = getDisplayValue('scale', selectedLayer.transform.scale) as [number, number];
+        setScaleRatio(s[0] !== 0 ? s[1] / s[0] : 1);
+      }
     },
     /** 次元統合 */
     mergeSplit: () => {
@@ -504,6 +510,15 @@ export function Properties() {
 
       setSplitDimensions(prev => ({ ...prev, [parentKey]: next }));
       setContextMenu(null);
+
+      // スケール統合時はscaleRatioを新しい値から自動更新
+      if (parentKey === 'scale' && scaleLinked) {
+        const latestL = useLayerStore.getState().layers.find(l => l.id === layerId);
+        if (latestL) {
+          const s = latestL.transform.scale;
+          setScaleRatio(s[0] !== 0 ? s[1] / s[0] : 1);
+        }
+      }
     },
   };
 
