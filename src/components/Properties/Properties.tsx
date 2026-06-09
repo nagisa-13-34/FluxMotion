@@ -44,8 +44,10 @@ export function Properties() {
     layer: true,
   });
 
-  // スケールリンク
+  // スケールリンク（比率保持）
   const [scaleLinked, setScaleLinked] = useState(true);
+  // リンクON時のX:Y比率（Y/X）。1ならX=Y
+  const [scaleRatio, setScaleRatio] = useState(1);
 
   // 次元分割（0=統合, 1=X/Y, 2=上下左右 ※スケールのみ）
   const [splitDimensions, setSplitDimensions] = useState<Record<string, number>>({});
@@ -175,15 +177,15 @@ export function Properties() {
   /** 値変更時、KFが有効なプロパティなら自動でKF更新 */
   const handleValueChange = (propKey: string, value: number | [number, number]) => {
     if (!selectedLayer) return;
-    // スケールリンク対応
+    // スケールリンク対応（比率保持）
     if (propKey === 'scale' && scaleLinked && Array.isArray(value)) {
       const oldScale = selectedLayer.transform.scale;
       const resolved = getDisplayValue('scale', oldScale) as [number, number];
-      // X/Yどちらが変わったかを判定
+      // X/Yどちらが変わったかを判定し、比率を維持して連動
       if (value[0] !== resolved[0]) {
-        value = [value[0], value[0]]; // Xに合わせる
+        value = [value[0], value[0] * scaleRatio]; // Xが変わった → YをX*ratio
       } else if (value[1] !== resolved[1]) {
-        value = [value[1], value[1]]; // Yに合わせる
+        value = [scaleRatio !== 0 ? value[1] / scaleRatio : value[1], value[1]]; // Yが変わった → XをY/ratio
       }
     }
     updateTransform(selectedLayer.id, propKey, value);
@@ -783,7 +785,15 @@ export function Properties() {
                   const scaleChainInline = prop.key === 'scale' ? (
                     <button
                       className={`prop-link-btn${scaleLinked ? ' linked' : ''}`}
-                      onClick={(e) => { e.stopPropagation(); setScaleLinked(!scaleLinked); }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (!scaleLinked) {
+                          // リンクON: 方向別の比率は top を基準にする
+                          const base = dirScaleValues.top || 1;
+                          setScaleRatio(base !== 0 ? dirScaleValues.top / base : 1);
+                        }
+                        setScaleLinked(!scaleLinked);
+                      }}
                       onMouseDown={(e) => e.stopPropagation()}
                       title={scaleLinked ? '縦横比を解除' : '縦横比を固定'}
                     >
@@ -820,8 +830,19 @@ export function Properties() {
                     const handleDirChange = (dirKey: DirKey, kfKey: string, v: number) => {
                       let newDir: typeof dirScaleValues;
                       if (scaleLinked) {
-                        // リンクON: 全方向を同じ値に
-                        newDir = { top: v, bottom: v, left: v, right: v };
+                        // リンクON: 比率を維持して全方向を連動
+                        const oldVal = dirScaleValues[dirKey];
+                        if (oldVal !== 0) {
+                          const ratio = v / oldVal;
+                          newDir = {
+                            top: dirScaleValues.top * ratio,
+                            bottom: dirScaleValues.bottom * ratio,
+                            left: dirScaleValues.left * ratio,
+                            right: dirScaleValues.right * ratio,
+                          };
+                        } else {
+                          newDir = { top: v, bottom: v, left: v, right: v };
+                        }
                       } else {
                         newDir = { ...dirScaleValues, [dirKey]: v };
                       }
@@ -830,9 +851,9 @@ export function Properties() {
                       updateTransform(selectedLayer.id, 'directionalScale', newDir);
                       // 方向別KFも更新
                       if (scaleLinked) {
-                        // リンク時は全方向のKFを更新
+                        // リンク時は全方向のKFを比率維持で更新
                         for (const d of dirs) {
-                          if (isAnimated(d.kfKey)) handleAddKeyframe(d.kfKey, v);
+                          if (isAnimated(d.kfKey)) handleAddKeyframe(d.kfKey, newDir[d.dirKey]);
                         }
                       } else {
                         if (isAnimated(kfKey)) handleAddKeyframe(kfKey, v);
@@ -911,7 +932,15 @@ export function Properties() {
                         {prop.key === 'scale' && (
                           <button
                             className={`prop-link-btn${scaleLinked ? ' linked' : ''}`}
-                            onClick={(e) => { e.stopPropagation(); setScaleLinked(!scaleLinked); }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (!scaleLinked && selectedLayer) {
+                                // リンクON: 現在のX:Y比率を記憶
+                                const s = (getDisplayValue('scale', selectedLayer.transform.scale) as [number, number]);
+                                setScaleRatio(s[0] !== 0 ? s[1] / s[0] : 1);
+                              }
+                              setScaleLinked(!scaleLinked);
+                            }}
                             onMouseDown={(e) => e.stopPropagation()}
                             title={scaleLinked ? '縦横比を解除' : '縦横比を固定'}
                           >
