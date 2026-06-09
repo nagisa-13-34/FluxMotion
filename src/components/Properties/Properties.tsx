@@ -46,8 +46,6 @@ export function Properties() {
 
   // スケールリンク（比率保持）
   const [scaleLinked, setScaleLinked] = useState(true);
-  // リンクON時のX:Y比率（Y/X）。1ならX=Y
-  const [scaleRatio, setScaleRatio] = useState(1);
 
   // 次元分割（0=統合, 1=X/Y, 2=上下左右 ※スケールのみ）
   const [splitDimensions, setSplitDimensions] = useState<Record<string, number>>({});
@@ -177,15 +175,17 @@ export function Properties() {
   /** 値変更時、KFが有効なプロパティなら自動でKF更新 */
   const handleValueChange = (propKey: string, value: number | [number, number]) => {
     if (!selectedLayer) return;
-    // スケールリンク対応（比率保持）
+    // スケールリンク対応（比率保持: 現在値からリアルタイム計算）
     if (propKey === 'scale' && scaleLinked && Array.isArray(value)) {
       const oldScale = selectedLayer.transform.scale;
       const resolved = getDisplayValue('scale', oldScale) as [number, number];
       // X/Yどちらが変わったかを判定し、比率を維持して連動
-      if (value[0] !== resolved[0]) {
-        value = [value[0], value[0] * scaleRatio]; // Xが変わった → YをX*ratio
-      } else if (value[1] !== resolved[1]) {
-        value = [scaleRatio !== 0 ? value[1] / scaleRatio : value[1], value[1]]; // Yが変わった → XをY/ratio
+      if (value[0] !== resolved[0] && resolved[0] !== 0) {
+        // Xが変わった → Y = newX × (oldY / oldX)
+        value = [value[0], value[0] * (resolved[1] / resolved[0])];
+      } else if (value[1] !== resolved[1] && resolved[1] !== 0) {
+        // Yが変わった → X = newY × (oldX / oldY)
+        value = [value[1] * (resolved[0] / resolved[1]), value[1]];
       }
     }
     updateTransform(selectedLayer.id, propKey, value);
@@ -350,11 +350,6 @@ export function Properties() {
       setSplitDimensions(prev => ({ ...prev, [parentKey]: next }));
       setContextMenu(null);
 
-      // スケール分割時はscaleRatioを現在の値から自動更新
-      if (parentKey === 'scale' && scaleLinked && selectedLayer) {
-        const s = getDisplayValue('scale', selectedLayer.transform.scale) as [number, number];
-        setScaleRatio(s[0] !== 0 ? s[1] / s[0] : 1);
-      }
     },
     /** 次元統合 */
     mergeSplit: () => {
@@ -511,14 +506,6 @@ export function Properties() {
       setSplitDimensions(prev => ({ ...prev, [parentKey]: next }));
       setContextMenu(null);
 
-      // スケール統合時はscaleRatioを新しい値から自動更新
-      if (parentKey === 'scale' && scaleLinked) {
-        const latestL = useLayerStore.getState().layers.find(l => l.id === layerId);
-        if (latestL) {
-          const s = latestL.transform.scale;
-          setScaleRatio(s[0] !== 0 ? s[1] / s[0] : 1);
-        }
-      }
     },
   };
 
@@ -802,11 +789,6 @@ export function Properties() {
                       className={`prop-link-btn${scaleLinked ? ' linked' : ''}`}
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (!scaleLinked) {
-                          // リンクON: 方向別の比率は top を基準にする
-                          const base = dirScaleValues.top || 1;
-                          setScaleRatio(base !== 0 ? dirScaleValues.top / base : 1);
-                        }
                         setScaleLinked(!scaleLinked);
                       }}
                       onMouseDown={(e) => e.stopPropagation()}
@@ -949,11 +931,6 @@ export function Properties() {
                             className={`prop-link-btn${scaleLinked ? ' linked' : ''}`}
                             onClick={(e) => {
                               e.stopPropagation();
-                              if (!scaleLinked && selectedLayer) {
-                                // リンクON: 現在のX:Y比率を記憶
-                                const s = (getDisplayValue('scale', selectedLayer.transform.scale) as [number, number]);
-                                setScaleRatio(s[0] !== 0 ? s[1] / s[0] : 1);
-                              }
                               setScaleLinked(!scaleLinked);
                             }}
                             onMouseDown={(e) => e.stopPropagation()}
