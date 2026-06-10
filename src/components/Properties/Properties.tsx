@@ -557,11 +557,7 @@ export function Properties() {
           className="prop-expression-input"
           value={expr}
           onChange={(e) => {
-            if (e.target.value) {
-              setExpression(selectedLayer.id, propKey, e.target.value);
-            } else {
-              removeExpression(selectedLayer.id, propKey);
-            }
+            setExpression(selectedLayer.id, propKey, e.target.value);
           }}
           placeholder={`例: wiggle(2, 30) / time * 360 / loopOut()`}
           rows={3}
@@ -746,7 +742,13 @@ export function Properties() {
                     )}
                     <button
                       className={`prop-keyframe-btn${hasKf ? ' has-keyframe' : ''}${animated ? ' animated' : ''}`}
-                      onClick={() => {
+                      onClick={(e) => {
+                        if (e.altKey) {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setExprOpen(prev => ({ ...prev, [prop.key]: !prev[prop.key] }));
+                          return;
+                        }
                         if (hasKf) { removeKeyframe(selectedLayer.id, prop.key, currentFrame); }
                         else {
                           const v = prop.type === 'xy'
@@ -755,7 +757,7 @@ export function Properties() {
                           handleAddKeyframe(prop.key, v);
                         }
                       }}
-                      title={hasKf ? 'キーフレーム削除' : 'キーフレーム追加'}
+                      title={hasKf ? 'キーフレーム削除 / Alt+クリックでエクスプレッション' : 'キーフレーム追加 / Alt+クリックでエクスプレッション'}
                     >
                       <svg viewBox="0 0 14 14" width="12" height="12">
                         <circle cx="7" cy="8" r="4.5" fill={hasKf ? 'var(--color-keyframe)' : 'none'}
@@ -808,7 +810,14 @@ export function Properties() {
                         )}
                         <button
                           className={`prop-keyframe-btn${axisHasKf ? ' has-keyframe' : ''}${axisAnimated ? ' animated' : ''}`}
-                          onClick={() => {
+                          onClick={(e) => {
+                            if (e.altKey) {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              const parentKey = axisPropKey.split('.')[0];
+                              setExprOpen(prev => ({ ...prev, [parentKey]: !prev[parentKey] }));
+                              return;
+                            }
                             if (axisHasKf) { removeKeyframe(selectedLayer.id, axisPropKey, currentFrame); }
                             else { handleAddKeyframe(axisPropKey, axisValue); }
                           }}
@@ -971,9 +980,8 @@ export function Properties() {
                         {kfControls}
                         <span
                           className={`prop-label scrub${animated ? ' animated' : ''}${hasExpr0 ? ' expression-active' : ''}`}
-                          onMouseDown={(e) => { if (!e.altKey) handleDragStart(e, displayArr[0], (v) => handleValueChange(prop.key, [v, displayArr[1]]), { step: stepVal }); }}
-                          onClick={(e) => handleAltClick(e, prop.key)}
-                          title="ドラッグで値を変更 / Alt+クリックでエクスプレッション"
+                          onMouseDown={(e) => handleDragStart(e, displayArr[0], (v) => handleValueChange(prop.key, [v, displayArr[1]]), { step: stepVal })}
+                          title="ドラッグで値を変更"
                         >
                           {prop.label}
                           {/* スケールリンクアイコン（ラベル横） */}
@@ -1020,9 +1028,8 @@ export function Properties() {
                       {kfControls}
                       <span
                         className={`prop-label scrub${animated ? ' animated' : ''}${hasExprNum ? ' expression-active' : ''}`}
-                        onMouseDown={(e) => { if (!e.altKey) handleDragStart(e, displayNum, (v) => handleValueChange(prop.key, v), { step: prop.key === 'rotation' ? 1 : 0.5, min: prop.min, max: prop.max }); }}
-                        onClick={(e) => handleAltClick(e, prop.key)}
-                        title="ドラッグで値を変更 / Alt+クリックでエクスプレッション"
+                        onMouseDown={(e) => handleDragStart(e, displayNum, (v) => handleValueChange(prop.key, v), { step: prop.key === 'rotation' ? 1 : 0.5, min: prop.min, max: prop.max })}
+                        title="ドラッグで値を変更"
                       >{prop.label}</span>
                       <div className="prop-value">
                         <input type="number" value={Math.round(displayNum * 10) / 10}
