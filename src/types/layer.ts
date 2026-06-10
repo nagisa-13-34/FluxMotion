@@ -83,6 +83,8 @@ export interface Layer {
   solidColor?: string;
   /** メディアファイルのパス/URL */
   mediaSource?: string;
+  /** エクスプレッション（プロパティ名 → 式文字列） */
+  expressions?: Record<string, string>;
 }
 
 /** デフォルトのトランスフォーム */

@@ -520,7 +520,7 @@ export function Timeline() {
             <React.Fragment key={layer.id}>
               <div className="layer-row-wrap">
               <div
-                className={`layer-row${selectedLayerIds.includes(layer.id) ? ' selected' : ''}${dragOverIndex === idx ? ' drag-over' : ''}${dragLayerIndex === idx ? ' dragging' : ''}`}
+                className={`layer-row${selectedLayerIds.includes(layer.id) ? ' selected' : ''}${dragOverIndex === idx ? ' drag-over' : ''}${dragLayerIndex === idx ? ' dragging' : ''}${layer.parentId ? ' has-parent' : ''}`}
                 onClick={(e) => selectLayer(layer.id, e.ctrlKey || e.metaKey)}
               >
                 <div
@@ -561,7 +561,19 @@ export function Timeline() {
                   className="layer-name"
                   onMouseDown={(e) => handleLayerReorderStart(e, idx)}
                   style={{ cursor: 'grab' }}
-                >{layer.name}</span>
+                >
+                  {layer.name}
+                  {layer.parentId && (
+                    <span className="layer-parent-badge" title={`親: ${layers.find(l => l.id === layer.parentId)?.name || '?'}`}>
+                      ↗
+                    </span>
+                  )}
+                  {layers.some(l => l.parentId === layer.id) && (
+                    <span className="layer-children-count" title="子レイヤーあり">
+                      {layers.filter(l => l.parentId === layer.id).length}
+                    </span>
+                  )}
+                </span>
                 {/* 展開トグル */}
                 <button
                   className="layer-expand-btn"

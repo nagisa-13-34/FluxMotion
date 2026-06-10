@@ -32,6 +32,16 @@ interface LayerState {
   toggleSolo: (id: string) => void;
   setBlendMode: (id: string, mode: BlendMode) => void;
 
+  // -- エクスプレッション --
+  setExpression: (layerId: string, propName: string, expr: string) => void;
+  removeExpression: (layerId: string, propName: string) => void;
+
+  // -- 親子関係ユーティリティ --
+  /** 指定レイヤーの祖先IDチェーン（循環参照検出用） */
+  getAncestorIds: (layerId: string) => string[];
+  /** 指定レイヤーを親に設定可能か（循環参照チェック） */
+  canSetParent: (childId: string, parentId: string) => boolean;
+
   // -- キーフレーム --
   addKeyframe: (layerId: string, propName: string, keyframe: Keyframe) => void;
   removeKeyframe: (layerId: string, propName: string, time: number) => void;
@@ -139,7 +149,10 @@ export const useLayerStore = create<LayerState>((set, get) => ({
 
   removeLayer: (id) =>
     set((s) => ({
-      layers: s.layers.filter((l) => l.id !== id),
+      // 親レイヤー削除時、子レイヤーのparentIdをnullにリセット
+      layers: s.layers
+        .filter((l) => l.id !== id)
+        .map((l) => l.parentId === id ? { ...l, parentId: null } : l),
       selectedLayerIds: s.selectedLayerIds.filter((sid) => sid !== id),
     })),
 
@@ -188,11 +201,26 @@ export const useLayerStore = create<LayerState>((set, get) => ({
   deselectAll: () => set({ selectedLayerIds: [] }),
 
   updateLayer: (id, partial) =>
-    set((s) => ({
-      layers: s.layers.map((l) =>
-        l.id === id ? { ...l, ...partial } : l
-      ),
-    })),
+    set((s) => {
+      // parentId変更時の循環参照チェック
+      if (partial.parentId !== undefined && partial.parentId !== null) {
+        if (!get().canSetParent(id, partial.parentId)) {
+          console.warn('[LayerStore] 循環参照を検出: parentId設定をキャンセル');
+          const { parentId: _, ...rest } = partial;
+          if (Object.keys(rest).length === 0) return s;
+          return {
+            layers: s.layers.map((l) =>
+              l.id === id ? { ...l, ...rest } : l
+            ),
+          };
+        }
+      }
+      return {
+        layers: s.layers.map((l) =>
+          l.id === id ? { ...l, ...partial } : l
+        ),
+      };
+    }),
 
   updateTransform: (id, prop, value) =>
     set((s) => ({
@@ -230,6 +258,55 @@ export const useLayerStore = create<LayerState>((set, get) => ({
         l.id === id ? { ...l, blendMode: mode } : l
       ),
     })),
+
+  // -- エクスプレッション --
+  setExpression: (layerId, propName, expr) =>
+    set((s) => ({
+      layers: s.layers.map((l) =>
+        l.id === layerId
+          ? { ...l, expressions: { ...(l.expressions || {}), [propName]: expr } }
+          : l
+      ),
+    })),
+
+  removeExpression: (layerId, propName) =>
+    set((s) => ({
+      layers: s.layers.map((l) => {
+        if (l.id !== layerId || !l.expressions) return l;
+        const { [propName]: _, ...rest } = l.expressions;
+        return { ...l, expressions: Object.keys(rest).length > 0 ? rest : undefined };
+      }),
+    })),
+
+  // -- 親子関係ユーティリティ --
+  getAncestorIds: (layerId) => {
+    const { layers } = get();
+    const ancestors: string[] = [];
+    let current = layers.find(l => l.id === layerId);
+    const visited = new Set<string>();
+    while (current?.parentId) {
+      if (visited.has(current.parentId)) break; // 循環ガード
+      visited.add(current.parentId);
+      ancestors.push(current.parentId);
+      current = layers.find(l => l.id === current!.parentId);
+    }
+    return ancestors;
+  },
+
+  canSetParent: (childId, parentId) => {
+    if (childId === parentId) return false; // 自分自身
+    // parentIdの祖先にchildIdが含まれていないかチェック
+    const { layers } = get();
+    let current = layers.find(l => l.id === parentId);
+    const visited = new Set<string>([childId]);
+    while (current) {
+      if (visited.has(current.id)) return false;
+      visited.add(current.id);
+      if (!current.parentId) break;
+      current = layers.find(l => l.id === current!.parentId);
+    }
+    return true;
+  },
 
   // -- キーフレーム --
   addKeyframe: (layerId, propName, keyframe) =>

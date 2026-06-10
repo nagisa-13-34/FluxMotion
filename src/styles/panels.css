@@ -792,3 +792,90 @@
   background: var(--color-border);
   margin: 4px 0;
 }
+
+/* ---- エクスプレッション ---- */
+.prop-expression-btn {
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color: var(--color-text-dim);
+  border: 1px solid transparent;
+  border-radius: 2px;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+.prop-expression-btn:hover {
+  color: var(--color-expression);
+  border-color: var(--color-expression);
+}
+.prop-expression-btn.active {
+  color: #fff;
+  background: var(--color-expression);
+  border-color: var(--color-expression);
+}
+
+.prop-label.expression-active {
+  color: var(--color-expression) !important;
+}
+
+.prop-expression-editor {
+  padding: 2px 8px 6px 28px;
+}
+
+.prop-expression-input {
+  width: 100%;
+  min-height: 44px;
+  max-height: 120px;
+  background: var(--color-bg-darkest);
+  border: 1px solid var(--color-border);
+  border-radius: 3px;
+  padding: 4px 6px;
+  font-size: var(--font-size-xxs);
+  font-family: var(--font-mono);
+  color: var(--color-expression);
+  resize: vertical;
+  line-height: 1.5;
+  tab-size: 2;
+}
+.prop-expression-input:focus {
+  border-color: var(--color-expression);
+  outline: none;
+}
+.prop-expression-input::placeholder {
+  color: var(--color-text-dim);
+  font-style: italic;
+}
+
+.prop-expression-hints {
+  display: flex;
+  gap: 4px;
+  margin-top: 3px;
+  flex-wrap: wrap;
+}
+.prop-expression-hints span {
+  display: inline-block;
+  padding: 1px 6px;
+  font-size: 8px;
+  font-family: var(--font-mono);
+  color: var(--color-text-muted);
+  background: var(--color-bg-hover);
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.prop-expression-hints span:hover {
+  color: var(--color-text-primary);
+  background: var(--color-bg-active);
+}
+.prop-expression-hints span.remove {
+  color: var(--color-error);
+}
+.prop-expression-hints span.remove:hover {
+  background: rgba(225, 112, 85, 0.2);
+}

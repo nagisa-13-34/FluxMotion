@@ -57,6 +57,7 @@ export function Preview({ onRenderReady }: PreviewProps) {
     if (rendererMode !== 'canvas2d' || !canvasRef.current) return;
     const renderer = new Renderer(canvasRef.current, settings.width, settings.height);
     renderer.backgroundColor = settings.backgroundColor;
+    renderer.fps = settings.fps;
     rendererRef.current = renderer;
     gpuRendererRef.current = null;
   }, [rendererMode, settings.width, settings.height, settings.backgroundColor]);

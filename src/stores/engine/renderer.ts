@@ -1,6 +1,7 @@
 import type { Layer } from '../../types/layer';
 import type { AnimatedProperty } from '../../types/keyframe';
 import { interpolateValue } from './keyframe';
+import { evaluateExpression } from './expression';
 
 /**
  * Canvas 2D ベースのレンダラー
@@ -37,6 +38,10 @@ export class Renderer {
     this._backgroundColor = color;
   }
 
+  /** FPS設定 */
+  private _fps = 30;
+  set fps(value: number) { this._fps = value; }
+
   /**
    * フレームを描画
    * animationsを受け取ってキーフレーム補間を適用
@@ -64,8 +69,8 @@ export class Renderer {
       if (!layer.visible) continue;
       if (currentFrame < layer.inPoint || currentFrame > layer.outPoint) continue;
 
-      // キーフレームアニメーションからトランスフォームを取得
-      const transform = this.resolveTransform(layer, currentFrame, animations);
+      // キーフレームアニメーション + エクスプレッション + 親子継承からトランスフォームを取得
+      const transform = this.resolveWorldTransform(layer, layers, currentFrame, animations);
 
       const renderContent = () => {
         switch (layer.type) {
@@ -98,6 +103,143 @@ export class Renderer {
       }
 
       ctx.restore();
+    }
+  }
+
+  /**
+   * 親子継承を考慮したワールドトランスフォームを解決
+   * 親レイヤーのトランスフォームを再帰的に適用する（AEと同じ挙動）
+   */
+  private resolveWorldTransform(
+    layer: Layer,
+    allLayers: Layer[],
+    frame: number,
+    animations?: Record<string, Record<string, AnimatedProperty>>,
+    visited: Set<string> = new Set(),
+  ): {
+    anchorPoint: [number, number];
+    position: [number, number];
+    scale: [number, number];
+    rotation: number;
+    opacity: number;
+    directionalScale?: { top?: number; bottom?: number; left?: number; right?: number };
+  } {
+    // 循環参照ガード
+    if (visited.has(layer.id)) {
+      return this.resolveTransform(layer, frame, animations);
+    }
+    visited.add(layer.id);
+
+    // 自身のローカルトランスフォーム（KF + エクスプレッション適用済み）
+    const local = this.resolveTransform(layer, frame, animations);
+
+    // エクスプレッション適用
+    this.applyExpressions(local, layer, frame, allLayers, animations);
+
+    // 親がない場合はローカルがそのままワールド
+    if (!layer.parentId) return local;
+
+    // 親レイヤーを検索
+    const parent = allLayers.find(l => l.id === layer.parentId);
+    if (!parent) return local;
+
+    // 親のワールドトランスフォームを再帰的に解決
+    const parentWorld = this.resolveWorldTransform(parent, allLayers, frame, animations, visited);
+
+    // 親子合成: 子のpositionを親のトランスフォーム空間に変換
+    // AEの挙動: 子のpositionは親のアンカーポイント基準
+    const parentRad = (parentWorld.rotation * Math.PI) / 180;
+    const parentSx = parentWorld.scale[0] / 100;
+    const parentSy = parentWorld.scale[1] / 100;
+
+    // 子のpositionからの相対オフセット（親のアンカーポイント基準）
+    const dx = local.position[0] - parentWorld.anchorPoint[0];
+    const dy = local.position[1] - parentWorld.anchorPoint[1];
+
+    // 親のスケール・回転を適用した上でオフセットを変換
+    const cos = Math.cos(parentRad);
+    const sin = Math.sin(parentRad);
+    const worldX = parentWorld.position[0] + (dx * parentSx * cos - dy * parentSy * sin);
+    const worldY = parentWorld.position[1] + (dx * parentSx * sin + dy * parentSy * cos);
+
+    return {
+      anchorPoint: local.anchorPoint,
+      position: [worldX, worldY],
+      scale: [
+        local.scale[0] * parentSx,
+        local.scale[1] * parentSy,
+      ],
+      rotation: local.rotation + parentWorld.rotation,
+      opacity: (local.opacity * parentWorld.opacity) / 100,
+      directionalScale: local.directionalScale,
+    };
+  }
+
+  /**
+   * エクスプレッションをトランスフォーム結果に適用
+   */
+  private applyExpressions(
+    transform: {
+      anchorPoint: [number, number];
+      position: [number, number];
+      scale: [number, number];
+      rotation: number;
+      opacity: number;
+    },
+    layer: Layer,
+    frame: number,
+    allLayers: Layer[],
+    animations?: Record<string, Record<string, AnimatedProperty>>,
+  ): void {
+    if (!layer.expressions) return;
+
+    const time = frame / this._fps;
+
+    for (const [propName, expr] of Object.entries(layer.expressions)) {
+      if (!expr || expr.trim() === '') continue;
+
+      // 現在値を取得
+      let currentValue: number | number[];
+      switch (propName) {
+        case 'anchorPoint': currentValue = [...transform.anchorPoint]; break;
+        case 'position': currentValue = [...transform.position]; break;
+        case 'scale': currentValue = [...transform.scale]; break;
+        case 'rotation': currentValue = transform.rotation; break;
+        case 'opacity': currentValue = transform.opacity; break;
+        default: continue;
+      }
+
+      const result = evaluateExpression(expr, {
+        time,
+        frame,
+        value: currentValue,
+        fps: this._fps,
+        layers: allLayers,
+        animations: animations || {},
+        thisLayer: layer,
+        propertyName: propName,
+      });
+
+      if (result === null) continue;
+
+      // 結果を反映
+      switch (propName) {
+        case 'anchorPoint':
+          if (Array.isArray(result)) transform.anchorPoint = result as [number, number];
+          break;
+        case 'position':
+          if (Array.isArray(result)) transform.position = result as [number, number];
+          break;
+        case 'scale':
+          if (Array.isArray(result)) transform.scale = result as [number, number];
+          break;
+        case 'rotation':
+          if (typeof result === 'number') transform.rotation = result;
+          break;
+        case 'opacity':
+          if (typeof result === 'number') transform.opacity = result;
+          break;
+      }
     }
   }
 

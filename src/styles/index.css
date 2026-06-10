@@ -44,6 +44,9 @@
   --color-timeline-grid: rgba(255, 255, 255, 0.04);
   --color-timeline-grid-major: rgba(255, 255, 255, 0.08);
 
+  /* エクスプレッション */
+  --color-expression: #FF6B6B;
+
   /* レイヤーカラー */
   --color-layer-solid: #6C5CE7;
   --color-layer-text: #00CEC9;

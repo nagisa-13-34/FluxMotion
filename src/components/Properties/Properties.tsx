@@ -35,6 +35,9 @@ export function Properties() {
   const addKeyframe = useLayerStore((s) => s.addKeyframe);
   const removeKeyframe = useLayerStore((s) => s.removeKeyframe);
   const animations = useLayerStore((s) => s.animations);
+  const canSetParent = useLayerStore((s) => s.canSetParent);
+  const setExpression = useLayerStore((s) => s.setExpression);
+  const removeExpression = useLayerStore((s) => s.removeExpression);
   const currentFrame = useTimelineStore((s) => s.currentFrame);
 
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
@@ -42,7 +45,11 @@ export function Properties() {
     text: true,
     shape: true,
     layer: true,
+    expression: false,
   });
+
+  // エクスプレッション入力表示トグル（propName → 開閉状態）
+  const [exprOpen, setExprOpen] = useState<Record<string, boolean>>({});
 
   // スケールリンク（比率保持）
   const [scaleLinked, setScaleLinked] = useState(true);
@@ -1310,7 +1317,7 @@ export function Properties() {
                   >
                     <option value="">なし</option>
                     {layers
-                      .filter((l) => l.id !== selectedLayer.id)
+                      .filter((l) => l.id !== selectedLayer.id && canSetParent(selectedLayer.id, l.id))
                       .map((l) => (
                         <option key={l.id} value={l.id}>
                           {l.name}
@@ -1319,6 +1326,80 @@ export function Properties() {
                   </select>
                 </div>
               </div>
+            </>
+          )}
+        </div>
+
+        {/* エクスプレッション */}
+        <div className="prop-group">
+          <div className="prop-group-header" onClick={() => toggleGroup('expression')}>
+            <svg className={`chevron${openGroups.expression ? ' open' : ''}`} viewBox="0 0 24 24" fill="currentColor">
+              <path d="M10 6l6 6-6 6V6z" />
+            </svg>
+            エクスプレッション
+          </div>
+          {openGroups.expression && (
+            <>
+              {['anchorPoint', 'position', 'scale', 'rotation', 'opacity'].map((propKey) => {
+                const expr = selectedLayer.expressions?.[propKey] || '';
+                const isOpen = exprOpen[propKey] || false;
+                const propLabels: Record<string, string> = {
+                  anchorPoint: 'アンカー', position: '位置', scale: 'スケール',
+                  rotation: '回転', opacity: '不透明度',
+                };
+                return (
+                  <div key={`expr-${propKey}`}>
+                    <div className="prop-row">
+                      <button
+                        className={`prop-expression-btn${expr ? ' active' : ''}`}
+                        onClick={() => setExprOpen(prev => ({ ...prev, [propKey]: !prev[propKey] }))}
+                        title="エクスプレッション"
+                      >
+                        =
+                      </button>
+                      <span className={`prop-label${expr ? ' expression-active' : ''}`}>
+                        {propLabels[propKey]}
+                      </span>
+                      <div className="prop-value">
+                        <span style={{
+                          fontSize: 'var(--font-size-xxs)',
+                          color: expr ? 'var(--color-expression)' : 'var(--color-text-dim)',
+                          fontFamily: 'var(--font-mono)',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}>
+                          {expr || 'なし'}
+                        </span>
+                      </div>
+                    </div>
+                    {isOpen && (
+                      <div className="prop-expression-editor">
+                        <textarea
+                          className="prop-expression-input"
+                          value={expr}
+                          onChange={(e) => {
+                            if (e.target.value) {
+                              setExpression(selectedLayer.id, propKey, e.target.value);
+                            } else {
+                              removeExpression(selectedLayer.id, propKey);
+                            }
+                          }}
+                          placeholder={`例: wiggle(2, 30) / time * 360 / loopOut()`}
+                          rows={3}
+                          spellCheck={false}
+                        />
+                        <div className="prop-expression-hints">
+                          <span onClick={() => setExpression(selectedLayer.id, propKey, 'wiggle(2, 30)')}>wiggle</span>
+                          <span onClick={() => setExpression(selectedLayer.id, propKey, 'time * 360')}>time*360</span>
+                          <span onClick={() => setExpression(selectedLayer.id, propKey, 'loopOut()')}>loopOut</span>
+                          {expr && <span className="remove" onClick={() => { removeExpression(selectedLayer.id, propKey); setExprOpen(prev => ({ ...prev, [propKey]: false })); }}>削除</span>}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </>
           )}
         </div>
