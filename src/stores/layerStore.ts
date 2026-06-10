@@ -361,7 +361,14 @@ export const useLayerStore = create<LayerState>((set, get) => ({
     get().saveSnapshot();
     const { selectedLayerIds } = get();
     set((s) => ({
-      layers: s.layers.filter((l) => !selectedLayerIds.includes(l.id)),
+      layers: s.layers
+        .filter((l) => !selectedLayerIds.includes(l.id))
+        .map((l) =>
+          // 切り取られるレイヤーを親に持つ子のparentIdをリセット
+          l.parentId && selectedLayerIds.includes(l.parentId)
+            ? { ...l, parentId: null }
+            : l
+        ),
       selectedLayerIds: [],
     }));
   },
@@ -438,7 +445,14 @@ export const useLayerStore = create<LayerState>((set, get) => ({
     if (selectedLayerIds.length === 0) return;
     get().saveSnapshot();
     set((s) => ({
-      layers: s.layers.filter((l) => !selectedLayerIds.includes(l.id)),
+      layers: s.layers
+        .filter((l) => !selectedLayerIds.includes(l.id))
+        .map((l) =>
+          // 削除されるレイヤーを親に持つ子のparentIdをリセット
+          l.parentId && selectedLayerIds.includes(l.parentId)
+            ? { ...l, parentId: null }
+            : l
+        ),
       selectedLayerIds: [],
     }));
   },
