@@ -5,6 +5,7 @@ import { useTimelineStore } from '../../stores/timelineStore';
 import { useUIStore } from '../../stores/uiStore';
 import { Renderer } from '../../stores/engine/renderer';
 import { WebGPURenderer, isWebGPUSupported } from '../../stores/engine/webgpuRenderer';
+import { interpolateValue } from '../../stores/engine/keyframe';
 import type { Layer } from '../../types/layer';
 
 interface PreviewProps {
@@ -22,6 +23,7 @@ export function Preview({ onRenderReady }: PreviewProps) {
   const settings = useProjectStore((s) => s.settings);
   const layers = useLayerStore((s) => s.layers);
   const selectedLayerIds = useLayerStore((s) => s.selectedLayerIds);
+  const animations = useLayerStore((s) => s.animations);
   const viewportZoom = useUIStore((s) => s.viewportZoom);
   const setViewportZoom = useUIStore((s) => s.setViewportZoom);
   const isPlaying = useTimelineStore((s) => s.isPlaying);
@@ -60,7 +62,7 @@ export function Preview({ onRenderReady }: PreviewProps) {
     renderer.fps = settings.fps;
     rendererRef.current = renderer;
     gpuRendererRef.current = null;
-  }, [rendererMode, settings.width, settings.height, settings.backgroundColor]);
+  }, [rendererMode, settings.width, settings.height, settings.backgroundColor, settings.fps]);
 
   // WebGPUレンダラー初期化
   useEffect(() => {
@@ -194,6 +196,41 @@ export function Preview({ onRenderReady }: PreviewProps) {
     }
   };
 
+  /** オーバーレイ用：KF補間を考慮した簡易トランスフォーム解決 */
+  const resolveOverlayTransform = (layer: Layer) => {
+    const base = layer.transform;
+    const pos: [number, number] = [...base.position];
+    const scl: [number, number] = [...base.scale];
+    let rot = base.rotation;
+
+    const layerAnim = animations[layer.id];
+    if (layerAnim) {
+      const interp = (name: string) => {
+        const prop = layerAnim[name];
+        return prop?.keyframes.length ? interpolateValue(prop, currentFrame) : null;
+      };
+
+      const pv = interp('position');
+      if (Array.isArray(pv)) { pos[0] = pv[0]; pos[1] = pv[1]; }
+      const px = interp('position.x');
+      if (typeof px === 'number') pos[0] = px;
+      const py = interp('position.y');
+      if (typeof py === 'number') pos[1] = py;
+
+      const sv = interp('scale');
+      if (Array.isArray(sv)) { scl[0] = sv[0]; scl[1] = sv[1]; }
+      const sxv = interp('scale.x');
+      if (typeof sxv === 'number') scl[0] = sxv;
+      const syv = interp('scale.y');
+      if (typeof syv === 'number') scl[1] = syv;
+
+      const rv = interp('rotation');
+      if (typeof rv === 'number') rot = rv;
+    }
+
+    return { position: pos, scale: scl, rotation: rot };
+  };
+
   // レンダラー切り替え
   const toggleRenderer = () => {
     if (rendererMode === 'canvas2d' && gpuAvailable) {
@@ -239,20 +276,20 @@ export function Preview({ onRenderReady }: PreviewProps) {
           {visibleLayers.map((layer) => {
             if (layer.type === 'null' || layer.type === 'adjustment') return null;
 
-            const { position } = layer.transform;
-            const sx = layer.transform.scale[0] / 100;
-            const sy = layer.transform.scale[1] / 100;
+            const resolved = resolveOverlayTransform(layer);
+            const sx = resolved.scale[0] / 100;
+            const sy = resolved.scale[1] / 100;
             const [rawW, rawH] = getLayerSize(layer);
-            const w = rawW * sx * scale;
-            const h = rawH * sy * scale;
+            const w = rawW * Math.abs(sx) * scale;
+            const h = rawH * Math.abs(sy) * scale;
             // テキスト揃えに応じたX位置オフセット
             let xOffset = -w / 2; // center（デフォルト）
             if (layer.type === 'text' && layer.textStyle) {
               if (layer.textStyle.textAlign === 'left') xOffset = 0;
               else if (layer.textStyle.textAlign === 'right') xOffset = -w;
             }
-            const x = position[0] * scale + xOffset;
-            const y = position[1] * scale - h / 2;
+            const x = resolved.position[0] * scale + xOffset;
+            const y = resolved.position[1] * scale - h / 2;
             const isSelected = selectedLayerIds.includes(layer.id);
             const isEditing = editingLayerId === layer.id;
 
@@ -273,6 +310,8 @@ export function Preview({ onRenderReady }: PreviewProps) {
                   boxSizing: 'border-box',
                   pointerEvents: 'auto',
                   transition: 'border-color 0.15s',
+                  transform: resolved.rotation !== 0 ? `rotate(${resolved.rotation}deg)` : undefined,
+                  transformOrigin: `${-xOffset}px ${h / 2}px`,
                 }}
                 onClick={(e) => {
                   e.stopPropagation();
@@ -288,7 +327,7 @@ export function Preview({ onRenderReady }: PreviewProps) {
 
                   const startX = e.clientX;
                   const startY = e.clientY;
-                  const origPos: [number, number] = [...position];
+                  const origPos: [number, number] = [...resolved.position];
                   let moved = false;
 
                   const onMove = (me: MouseEvent) => {
@@ -326,11 +365,11 @@ export function Preview({ onRenderReady }: PreviewProps) {
           {editingLayerId && (() => {
             const layer = layers.find(l => l.id === editingLayerId);
             if (!layer?.textStyle) return null;
-            const { position } = layer.transform;
+            const editResolved = resolveOverlayTransform(layer);
             const fontSize = layer.textStyle.fontSize;
             const [rawW, rawH] = getLayerSize(layer);
-            const sx = layer.transform.scale[0] / 100;
-            const sy = layer.transform.scale[1] / 100;
+            const sx = editResolved.scale[0] / 100;
+            const sy = editResolved.scale[1] / 100;
 
             return (
               <textarea
@@ -341,8 +380,8 @@ export function Preview({ onRenderReady }: PreviewProps) {
                 onKeyDown={handleTextKeyDown}
                 style={{
                   position: 'absolute',
-                  left: position[0] * scale,
-                  top: position[1] * scale - (rawH * sy * scale) / 2,
+                  left: editResolved.position[0] * scale,
+                  top: editResolved.position[1] * scale - (rawH * sy * scale) / 2,
                   transform: layer.textStyle.textAlign === 'left' ? 'none'
                     : layer.textStyle.textAlign === 'right' ? 'translateX(-100%)'
                     : 'translateX(-50%)',
