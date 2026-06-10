@@ -546,6 +546,47 @@ export function Properties() {
     return '次元を分割';
   };
 
+  /** インラインエクスプレッション欄を描画するヘルパー */
+  const renderExpressionInline = (propKey: string) => {
+    const isOpen = exprOpen[propKey] || false;
+    if (!isOpen || !selectedLayer) return null;
+    const expr = selectedLayer.expressions?.[propKey] || '';
+    return (
+      <div className="prop-expression-editor" style={{ marginLeft: 28 }}>
+        <textarea
+          className="prop-expression-input"
+          value={expr}
+          onChange={(e) => {
+            if (e.target.value) {
+              setExpression(selectedLayer.id, propKey, e.target.value);
+            } else {
+              removeExpression(selectedLayer.id, propKey);
+            }
+          }}
+          placeholder={`例: wiggle(2, 30) / time * 360 / loopOut()`}
+          rows={3}
+          spellCheck={false}
+          onClick={(e) => e.stopPropagation()}
+        />
+        <div className="prop-expression-hints">
+          <span onClick={() => setExpression(selectedLayer.id, propKey, 'wiggle(2, 30)')}>wiggle</span>
+          <span onClick={() => setExpression(selectedLayer.id, propKey, 'time * 360')}>time*360</span>
+          <span onClick={() => setExpression(selectedLayer.id, propKey, 'loopOut()')}>loopOut</span>
+          {expr && <span className="remove" onClick={() => { removeExpression(selectedLayer.id, propKey); setExprOpen(prev => ({ ...prev, [propKey]: false })); }}>削除</span>}
+        </div>
+      </div>
+    );
+  };
+
+  /** ALTクリックハンドラ: エクスプレッション欄をトグル */
+  const handleAltClick = (e: React.MouseEvent, propKey: string) => {
+    if (e.altKey) {
+      e.preventDefault();
+      e.stopPropagation();
+      setExprOpen(prev => ({ ...prev, [propKey]: !prev[propKey] }));
+    }
+  };
+
   /** KFボタン付き数値プロパティ行（ナビ矢印+ドラッグスクラブ対応） */
   const renderKfNumericRow = (
     propKey: string,
@@ -922,72 +963,82 @@ export function Properties() {
                   }
 
                   // 段階0: 統合（通常表示）
+                  const hasExpr0 = !!selectedLayer.expressions?.[prop.key];
                   return (
-                    <div key={prop.key} className="prop-row prop-row-kf"
-                      onContextMenu={(e) => openContextMenu(e, prop.key, displayArr)}>
-                      {kfControls}
-                      <span
-                        className={`prop-label scrub${animated ? ' animated' : ''}`}
-                        onMouseDown={(e) => handleDragStart(e, displayArr[0], (v) => handleValueChange(prop.key, [v, displayArr[1]]), { step: stepVal })}
-                        title="ドラッグで値を変更"
-                      >
-                        {prop.label}
-                        {/* スケールリンクアイコン（ラベル横） */}
-                        {prop.key === 'scale' && (
-                          <button
-                            className={`prop-link-btn${scaleLinked ? ' linked' : ''}`}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setScaleLinked(!scaleLinked);
-                            }}
-                            onMouseDown={(e) => e.stopPropagation()}
-                            title={scaleLinked ? '縦横比を解除' : '縦横比を固定'}
-                          >
-                            <svg viewBox="0 0 14 14" width="12" height="12">
-                              {scaleLinked ? (<>
-                                <rect x="2" y="3" width="10" height="3" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.2" />
-                                <rect x="2" y="8" width="10" height="3" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.2" />
-                                <line x1="7" y1="6" x2="7" y2="8" stroke="currentColor" strokeWidth="1.2" />
-                              </>) : (<>
-                                <rect x="2" y="3" width="10" height="3" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.2" />
-                                <rect x="2" y="8" width="10" height="3" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.2" />
-                              </>)}
-                            </svg>
-                          </button>
-                        )}
-                      </span>
-                      <div className="prop-value">
-                        {numInput(displayArr[0], (v) => handleValueChange(prop.key, [v, displayArr[1]]), stepVal, '50%')}
-                        {numInput(displayArr[1], (v) => handleValueChange(prop.key, [displayArr[0], v]), stepVal, '50%')}
+                    <div key={prop.key}>
+                      <div className="prop-row prop-row-kf"
+                        onContextMenu={(e) => openContextMenu(e, prop.key, displayArr)}>
+                        {kfControls}
+                        <span
+                          className={`prop-label scrub${animated ? ' animated' : ''}${hasExpr0 ? ' expression-active' : ''}`}
+                          onMouseDown={(e) => { if (!e.altKey) handleDragStart(e, displayArr[0], (v) => handleValueChange(prop.key, [v, displayArr[1]]), { step: stepVal }); }}
+                          onClick={(e) => handleAltClick(e, prop.key)}
+                          title="ドラッグで値を変更 / Alt+クリックでエクスプレッション"
+                        >
+                          {prop.label}
+                          {/* スケールリンクアイコン（ラベル横） */}
+                          {prop.key === 'scale' && (
+                            <button
+                              className={`prop-link-btn${scaleLinked ? ' linked' : ''}`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setScaleLinked(!scaleLinked);
+                              }}
+                              onMouseDown={(e) => e.stopPropagation()}
+                              title={scaleLinked ? '縦横比を解除' : '縦横比を固定'}
+                            >
+                              <svg viewBox="0 0 14 14" width="12" height="12">
+                                {scaleLinked ? (<>
+                                  <rect x="2" y="3" width="10" height="3" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.2" />
+                                  <rect x="2" y="8" width="10" height="3" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.2" />
+                                  <line x1="7" y1="6" x2="7" y2="8" stroke="currentColor" strokeWidth="1.2" />
+                                </>) : (<>
+                                  <rect x="2" y="3" width="10" height="3" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.2" />
+                                  <rect x="2" y="8" width="10" height="3" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.2" />
+                                </>)}
+                              </svg>
+                            </button>
+                          )}
+                        </span>
+                        <div className="prop-value">
+                          {numInput(displayArr[0], (v) => handleValueChange(prop.key, [v, displayArr[1]]), stepVal, '50%')}
+                          {numInput(displayArr[1], (v) => handleValueChange(prop.key, [displayArr[0], v]), stepVal, '50%')}
+                        </div>
                       </div>
+                      {renderExpressionInline(prop.key)}
                     </div>
                   );
                 }
 
                 const defaultNum = rawValue as number;
                 const displayNum = getDisplayValue(prop.key, defaultNum) as number;
+                const hasExprNum = !!selectedLayer.expressions?.[prop.key];
                 return (
-                  <div key={prop.key} className="prop-row prop-row-kf"
-                    onContextMenu={(e) => openContextMenu(e, prop.key, displayNum)}>
-                    {kfControls}
-                    <span
-                      className={`prop-label scrub${animated ? ' animated' : ''}`}
-                      onMouseDown={(e) => handleDragStart(e, displayNum, (v) => handleValueChange(prop.key, v), { step: prop.key === 'rotation' ? 1 : 0.5, min: prop.min, max: prop.max })}
-                      title="ドラッグで値を変更"
-                    >{prop.label}</span>
-                    <div className="prop-value">
-                      <input type="number" value={Math.round(displayNum * 10) / 10}
-                        onChange={(e) => handleValueChange(prop.key, parseFloat(e.target.value) || 0)}
-                        readOnly
-                        onMouseDown={(e) => { if (!e.currentTarget.readOnly) return; handleDragStart(e, displayNum, (v) => handleValueChange(prop.key, v), { step: prop.key === 'rotation' ? 1 : 0.5, min: prop.min, max: prop.max }); }}
-                        onDoubleClick={(e) => { e.currentTarget.readOnly = false; e.currentTarget.focus(); e.currentTarget.select(); }}
-                        onBlur={(e) => { e.currentTarget.readOnly = true; }}
-                        onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
-                        min={prop.min} max={prop.max} step={prop.key === 'rotation' ? 1 : 0.5} />
-                      {prop.suffix && (
-                        <span style={{ fontSize: 'var(--font-size-xxs)', color: 'var(--color-text-dim)', alignSelf: 'center' }}>{prop.suffix}</span>
-                      )}
+                  <div key={prop.key}>
+                    <div className="prop-row prop-row-kf"
+                      onContextMenu={(e) => openContextMenu(e, prop.key, displayNum)}>
+                      {kfControls}
+                      <span
+                        className={`prop-label scrub${animated ? ' animated' : ''}${hasExprNum ? ' expression-active' : ''}`}
+                        onMouseDown={(e) => { if (!e.altKey) handleDragStart(e, displayNum, (v) => handleValueChange(prop.key, v), { step: prop.key === 'rotation' ? 1 : 0.5, min: prop.min, max: prop.max }); }}
+                        onClick={(e) => handleAltClick(e, prop.key)}
+                        title="ドラッグで値を変更 / Alt+クリックでエクスプレッション"
+                      >{prop.label}</span>
+                      <div className="prop-value">
+                        <input type="number" value={Math.round(displayNum * 10) / 10}
+                          onChange={(e) => handleValueChange(prop.key, parseFloat(e.target.value) || 0)}
+                          readOnly
+                          onMouseDown={(e) => { if (!e.currentTarget.readOnly) return; handleDragStart(e, displayNum, (v) => handleValueChange(prop.key, v), { step: prop.key === 'rotation' ? 1 : 0.5, min: prop.min, max: prop.max }); }}
+                          onDoubleClick={(e) => { e.currentTarget.readOnly = false; e.currentTarget.focus(); e.currentTarget.select(); }}
+                          onBlur={(e) => { e.currentTarget.readOnly = true; }}
+                          onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+                          min={prop.min} max={prop.max} step={prop.key === 'rotation' ? 1 : 0.5} />
+                        {prop.suffix && (
+                          <span style={{ fontSize: 'var(--font-size-xxs)', color: 'var(--color-text-dim)', alignSelf: 'center' }}>{prop.suffix}</span>
+                        )}
+                      </div>
                     </div>
+                    {renderExpressionInline(prop.key)}
                   </div>
                 );
               })}
@@ -1330,79 +1381,7 @@ export function Properties() {
           )}
         </div>
 
-        {/* エクスプレッション */}
-        <div className="prop-group">
-          <div className="prop-group-header" onClick={() => toggleGroup('expression')}>
-            <svg className={`chevron${openGroups.expression ? ' open' : ''}`} viewBox="0 0 24 24" fill="currentColor">
-              <path d="M10 6l6 6-6 6V6z" />
-            </svg>
-            エクスプレッション
-          </div>
-          {openGroups.expression && (
-            <>
-              {['anchorPoint', 'position', 'scale', 'rotation', 'opacity'].map((propKey) => {
-                const expr = selectedLayer.expressions?.[propKey] || '';
-                const isOpen = exprOpen[propKey] || false;
-                const propLabels: Record<string, string> = {
-                  anchorPoint: 'アンカー', position: '位置', scale: 'スケール',
-                  rotation: '回転', opacity: '不透明度',
-                };
-                return (
-                  <div key={`expr-${propKey}`}>
-                    <div className="prop-row">
-                      <button
-                        className={`prop-expression-btn${expr ? ' active' : ''}`}
-                        onClick={() => setExprOpen(prev => ({ ...prev, [propKey]: !prev[propKey] }))}
-                        title="エクスプレッション"
-                      >
-                        =
-                      </button>
-                      <span className={`prop-label${expr ? ' expression-active' : ''}`}>
-                        {propLabels[propKey]}
-                      </span>
-                      <div className="prop-value">
-                        <span style={{
-                          fontSize: 'var(--font-size-xxs)',
-                          color: expr ? 'var(--color-expression)' : 'var(--color-text-dim)',
-                          fontFamily: 'var(--font-mono)',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                        }}>
-                          {expr || 'なし'}
-                        </span>
-                      </div>
-                    </div>
-                    {isOpen && (
-                      <div className="prop-expression-editor">
-                        <textarea
-                          className="prop-expression-input"
-                          value={expr}
-                          onChange={(e) => {
-                            if (e.target.value) {
-                              setExpression(selectedLayer.id, propKey, e.target.value);
-                            } else {
-                              removeExpression(selectedLayer.id, propKey);
-                            }
-                          }}
-                          placeholder={`例: wiggle(2, 30) / time * 360 / loopOut()`}
-                          rows={3}
-                          spellCheck={false}
-                        />
-                        <div className="prop-expression-hints">
-                          <span onClick={() => setExpression(selectedLayer.id, propKey, 'wiggle(2, 30)')}>wiggle</span>
-                          <span onClick={() => setExpression(selectedLayer.id, propKey, 'time * 360')}>time*360</span>
-                          <span onClick={() => setExpression(selectedLayer.id, propKey, 'loopOut()')}>loopOut</span>
-                          {expr && <span className="remove" onClick={() => { removeExpression(selectedLayer.id, propKey); setExprOpen(prev => ({ ...prev, [propKey]: false })); }}>削除</span>}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </>
-          )}
-        </div>
+        {/* エクスプレッションは各プロパティのAlt+クリックでインライン表示 */}
       </div>
 
       {/* コンテキストメニュー */}

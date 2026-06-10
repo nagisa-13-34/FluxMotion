@@ -215,6 +215,63 @@ export const useLayerStore = create<LayerState>((set, get) => ({
           };
         }
       }
+
+      // parentId変更時: 子のpositionを親のローカル座標系に変換（見た目の位置を維持するAE挙動）
+      if (partial.parentId !== undefined) {
+        const child = s.layers.find((l) => l.id === id);
+        if (child) {
+          const oldParentId = child.parentId;
+          const newParentId = partial.parentId;
+
+          // まず現在のワールド座標を計算（旧親がある場合）
+          let worldPos: [number, number] = [...child.transform.position];
+          if (oldParentId) {
+            const oldParent = s.layers.find((l) => l.id === oldParentId);
+            if (oldParent) {
+              const pRad = (oldParent.transform.rotation * Math.PI) / 180;
+              const pSx = oldParent.transform.scale[0] / 100;
+              const pSy = oldParent.transform.scale[1] / 100;
+              const dx = worldPos[0] - oldParent.transform.anchorPoint[0];
+              const dy = worldPos[1] - oldParent.transform.anchorPoint[1];
+              const cos = Math.cos(pRad);
+              const sin = Math.sin(pRad);
+              worldPos = [
+                oldParent.transform.position[0] + (dx * pSx * cos - dy * pSy * sin),
+                oldParent.transform.position[1] + (dx * pSx * sin + dy * pSy * cos),
+              ];
+            }
+          }
+
+          // 新しい親のローカル座標系に変換
+          if (newParentId) {
+            const newParent = s.layers.find((l) => l.id === newParentId);
+            if (newParent) {
+              const pRad = (newParent.transform.rotation * Math.PI) / 180;
+              const pSx = newParent.transform.scale[0] / 100;
+              const pSy = newParent.transform.scale[1] / 100;
+              const cos = Math.cos(pRad);
+              const sin = Math.sin(pRad);
+              // ワールド座標から親基準のオフセットを逆算
+              const relX = worldPos[0] - newParent.transform.position[0];
+              const relY = worldPos[1] - newParent.transform.position[1];
+              // 回転の逆変換 + スケールの逆変換
+              const localDx = pSx !== 0 ? (relX * cos + relY * sin) / pSx : 0;
+              const localDy = pSy !== 0 ? (-relX * sin + relY * cos) / pSy : 0;
+              const newPos: [number, number] = [
+                newParent.transform.anchorPoint[0] + localDx,
+                newParent.transform.anchorPoint[1] + localDy,
+              ];
+              partial = { ...partial, transform: { ...child.transform, position: newPos } };
+            }
+          } else {
+            // 親を解除: ワールド座標をそのままpositionに
+            if (oldParentId) {
+              partial = { ...partial, transform: { ...child.transform, position: worldPos } };
+            }
+          }
+        }
+      }
+
       return {
         layers: s.layers.map((l) =>
           l.id === id ? { ...l, ...partial } : l
