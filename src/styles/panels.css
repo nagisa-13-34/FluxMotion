@@ -57,14 +57,13 @@
   color: var(--color-text-primary) !important;
 }
 
-/* タブセットのタブストリップ */
+/* タブセットのタブストリップ - 非表示（パネル内ヘッダーで操作） */
 .flexlayout__tabset_tabbar_outer {
-  background: var(--color-bg-darker) !important;
-  border-bottom: 1px solid var(--color-border) !important;
+  display: none !important;
 }
 
 .flexlayout__tabset_tabbar_inner {
-  background: transparent !important;
+  display: none !important;
 }
 
 /* スプリッター（完全透明・全ステート） */
