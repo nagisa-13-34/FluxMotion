@@ -1,6 +1,6 @@
 import { useEffect, useRef, useCallback, createContext } from 'react';
 import { Layout, Actions } from 'flexlayout-react';
-import type { TabNode, TabSetNode, BorderNode, Model, Action } from 'flexlayout-react';
+import type { TabNode, TabSetNode, BorderNode, Model, Action, ILayoutApi } from 'flexlayout-react';
 import 'flexlayout-react/style/dark.css';
 
 import { MenuBar } from './components/MenuBar/MenuBar';
@@ -20,10 +20,10 @@ import { EASING_PRESETS } from './types/keyframe';
 import { downloadProject, openProjectPicker } from './stores/engine/projectIO';
 
 /** Layout ref を全パネルからアクセスするためのContext */
-export const LayoutContext = createContext<React.RefObject<InstanceType<typeof Layout> | null>>({ current: null });
+export const LayoutContext = createContext<React.RefObject<ILayoutApi | null>>({ current: null });
 
 export default function App() {
-  const layoutRef = useRef<Layout>(null);
+  const layoutRef = useRef<ILayoutApi>(null);
   const { isPlaying, togglePlay } = useTimelineStore();
   const settings = useProjectStore((s) => s.settings);
   const totalFrames = useProjectStore((s) => s.totalFrames);

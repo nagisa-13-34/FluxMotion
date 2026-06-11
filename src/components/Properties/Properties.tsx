@@ -581,14 +581,6 @@ export function Properties() {
     );
   };
 
-  /** ALTクリックハンドラ: エクスプレッション欄をトグル */
-  const handleAltClick = (e: React.MouseEvent, propKey: string) => {
-    if (e.altKey) {
-      e.preventDefault();
-      e.stopPropagation();
-      setExprOpen(prev => ({ ...prev, [propKey]: !prev[propKey] }));
-    }
-  };
 
   /** KFボタン付き数値プロパティ行（ナビ矢印+ドラッグスクラブ対応） */
   const renderKfNumericRow = (
