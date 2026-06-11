@@ -160,3 +160,5 @@ docs/                    # ドキュメント
 ## ライセンス
 
 MIT License. 詳しくは [LICENSE](LICENSE) を参照。
+
+*このProjectは全てVibeCodingで制作されました。*
