@@ -262,15 +262,31 @@ export function Timeline() {
     return () => window.removeEventListener('keydown', handleKeyDown, true);
   }, [selectedKfs, removeKeyframe]);
 
-  // ズーム（ホイール）
+  // ズーム（ホイール） - プレイヘッド基準
   const handleWheel = (e: React.WheelEvent) => {
     if (e.ctrlKey || e.metaKey) {
       e.preventDefault();
+      const el = trackContainerRef.current;
+      if (!el) return;
+
       const total = totalFrames();
-      const containerW = trackContainerRef.current?.clientWidth || 800;
+      const containerW = el.clientWidth;
       const minZoom = total > 0 ? containerW / total : 0.5;
-      const newZoom = zoom + (e.deltaY > 0 ? -1 : 1);
-      setZoom(Math.max(minZoom, newZoom));
+
+      const newZoom = Math.max(minZoom, zoom + (e.deltaY > 0 ? -1 : 1));
+      if (newZoom === zoom) return;
+
+      // プレイヘッドのビューポート内位置を保持
+      const playheadOldX = currentFrame * zoom;
+      const viewOffset = playheadOldX - el.scrollLeft;
+
+      setZoom(newZoom);
+
+      // ズーム後にプレイヘッドが同じビューポート位置に来るようscrollLeft調整
+      requestAnimationFrame(() => {
+        const playheadNewX = currentFrame * newZoom;
+        el.scrollLeft = Math.max(0, playheadNewX - viewOffset);
+      });
     }
   };
 
