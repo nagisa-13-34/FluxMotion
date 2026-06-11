@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useCallback, useState } from 'react';
+import React, { useRef, useEffect, useLayoutEffect, useCallback, useState } from 'react';
 import { useLayerStore, getLayerColor } from '../../stores/layerStore';
 import { useTimelineStore } from '../../stores/timelineStore';
 import { useProjectStore } from '../../stores/projectStore';
@@ -279,6 +279,20 @@ export function Timeline() {
     return () => window.removeEventListener('keydown', handleKeyDown, true);
   }, [selectedKfs, removeKeyframe]);
 
+  // ズーム後のscrollLeft調整用ref
+  const pendingScrollLeftRef = useRef<number | null>(null);
+
+  // DOMコミット直後に同期的にscrollLeftを適用（ちらつき防止）
+  useLayoutEffect(() => {
+    if (pendingScrollLeftRef.current !== null) {
+      const el = trackContainerRef.current;
+      if (el) {
+        el.scrollLeft = pendingScrollLeftRef.current;
+      }
+      pendingScrollLeftRef.current = null;
+    }
+  });
+
   // ズーム（ホイール） - プレイヘッド基準
   const handleWheel = (e: React.WheelEvent) => {
     if (e.ctrlKey || e.metaKey) {
@@ -296,16 +310,10 @@ export function Timeline() {
       // プレイヘッドのビューポート内位置を保持
       const playheadOldX = currentFrame * zoom;
       const viewOffset = playheadOldX - el.scrollLeft;
+      const playheadNewX = currentFrame * newZoom;
+      pendingScrollLeftRef.current = Math.max(0, playheadNewX - viewOffset);
 
       setZoom(newZoom);
-
-      // ズーム後にプレイヘッドが同じビューポート位置に来るようscrollLeft調整
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          const playheadNewX = currentFrame * newZoom;
-          el.scrollLeft = Math.max(0, playheadNewX - viewOffset);
-        });
-      });
     }
   };
 
