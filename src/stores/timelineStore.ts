@@ -44,7 +44,7 @@ export const useTimelineStore = create<TimelineState>((set) => ({
     set((s) => ({ currentFrame: Math.max(0, s.currentFrame - 1) })),
 
   setZoom: (zoom) =>
-    set({ zoom: Math.max(1, Math.min(30, zoom)) }),
+    set({ zoom: Math.max(0.1, zoom) }),
   setScrollFrame: (frame) =>
     set({ scrollFrame: Math.max(0, frame) }),
 }));

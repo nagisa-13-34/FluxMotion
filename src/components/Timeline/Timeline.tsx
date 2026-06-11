@@ -85,38 +85,36 @@ export function Timeline() {
     [zoom],
   );
 
-  // ピクセル→フレーム変換（コンテナ内クリック位置 + スクロールオフセット）
+  // ピクセル→フレーム変換
   const xToFrame = useCallback(
-    (x: number) => {
-      const scrollLeft = hScrollRef.current?.scrollLeft || 0;
-      return Math.round((x + scrollLeft) / zoom);
-    },
+    (x: number) => Math.round(x / zoom),
     [zoom],
   );
 
-  // コンポ全長のピクセル幅
-  const totalContentWidth = totalFrames() * zoom;
+  // トラックコンテナ ref
+  const trackContainerRef = useRef<HTMLDivElement>(null);
 
-  // 水平スクロール ref
-  const hScrollRef = useRef<HTMLDivElement>(null);
-
-  // 水平スクロール → scrollFrame 同期
-  const handleHScroll = useCallback(() => {
-    const el = hScrollRef.current;
-    if (!el) return;
-    const newScrollFrame = el.scrollLeft / zoom;
-    setScrollFrame(Math.max(0, newScrollFrame));
-  }, [zoom, setScrollFrame]);
-
-  // scrollFrame 変更 → スクロール位置同期（再生時オートスクロール用）
+  // コンポ全長がトラック幅に収まるようにzoomを自動計算
   useEffect(() => {
-    const el = hScrollRef.current;
+    const el = trackContainerRef.current;
     if (!el) return;
-    const targetLeft = scrollFrame * zoom;
-    if (Math.abs(el.scrollLeft - targetLeft) > 1) {
-      el.scrollLeft = targetLeft;
-    }
-  }, [scrollFrame, zoom]);
+    const total = totalFrames();
+    if (total <= 0) return;
+
+    const calcFitZoom = () => {
+      const w = el.clientWidth;
+      if (w <= 0) return;
+      const fitZoom = Math.max(0.5, w / total);
+      setZoom(fitZoom);
+    };
+    calcFitZoom();
+
+    const ro = new ResizeObserver(calcFitZoom);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [totalFrames, setZoom]);
+
+
 
   // ルーラークリック → プレイヘッド移動
   const handleRulerMouseDown = (e: React.MouseEvent) => {
@@ -299,23 +297,7 @@ export function Timeline() {
     }
   }, []);
 
-  // ── 再生時オートスクロール ──
-  useEffect(() => {
-    if (!isPlaying) return;
-    const el = hScrollRef.current;
-    if (!el) return;
-    const viewWidth = el.clientWidth;
-    const playheadAbsX = currentFrame * zoom;
-    const scrollLeft = el.scrollLeft;
-    // プレイヘッドがビューの右80%を超えたらスクロール
-    if (playheadAbsX - scrollLeft > viewWidth * 0.8) {
-      el.scrollLeft = playheadAbsX - viewWidth * 0.2;
-    }
-    // プレイヘッドがビューの左端より前
-    if (playheadAbsX < scrollLeft) {
-      el.scrollLeft = Math.max(0, playheadAbsX - viewWidth * 0.1);
-    }
-  }, [isPlaying, currentFrame, zoom]);
+  // ── 再生時オートスクロール（全体表示のため不要だが将来用に残す） ──
 
   // ルーラーの目盛り生成
   const renderRuler = () => {
@@ -673,8 +655,7 @@ export function Timeline() {
         </div>
 
         {/* 右側: トラック */}
-        <div className="timeline-tracks" ref={hScrollRef} onScroll={handleHScroll}>
-          <div style={{ minWidth: totalContentWidth + 100, display: 'flex', flexDirection: 'column', height: '100%' }}>
+        <div className="timeline-tracks" ref={trackContainerRef}>
           <div
             ref={rulerRef}
             className="timeline-ruler"
@@ -860,7 +841,6 @@ export function Timeline() {
               style={{ left: frameToX(currentFrame) }}
             />
           </div>
-          </div>{/* /minWidth wrapper */}
         </div>
       </div>
     </div>

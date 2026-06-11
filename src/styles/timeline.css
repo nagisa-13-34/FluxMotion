@@ -180,10 +180,11 @@
 /* ---- Tracks Area (Right side) ---- */
 .timeline-tracks {
   flex: 1;
-  overflow-x: auto;
-  overflow-y: hidden;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   position: relative;
-  min-width: 0; /* flexの縮小を許可 */
+  min-width: 0;
 }
 
 /* ---- Ruler ---- */
