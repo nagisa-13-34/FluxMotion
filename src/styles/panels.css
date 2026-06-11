@@ -87,6 +87,28 @@
   background: transparent !important;
 }
 
+/* ボーダー（左サイドバー等）のタブバーを非表示 */
+.flexlayout__border_bar_button_leading,
+.flexlayout__border_bar_button_trailing {
+  display: none !important;
+}
+.flexlayout__border_button {
+  display: none !important;
+}
+.flexlayout__border_toolbar {
+  display: none !important;
+}
+.flexlayout__border_inner {
+  display: none !important;
+}
+.flexlayout__border {
+  background: transparent !important;
+  border: none !important;
+}
+.flexlayout__border_inner_tab_container {
+  display: none !important;
+}
+
 /* タブセット選択時のアクセントボーダーも非表示 */
 .flexlayout__tabset-selected {
   box-shadow: none !important;
