@@ -2,14 +2,13 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useUIStore, type ToolType } from '../../stores/uiStore';
 import { useLayerStore } from '../../stores/layerStore';
-import type { ShapeType } from '../../types/layer';
 
 interface ToolDef {
   id: ToolType;
   label: string;
   shortcut: string;
   /** クリックでレイヤーを自動追加するタイプ */
-  createsLayer?: 'text' | 'shape' | 'solid';
+  createsLayer?: 'text' | 'solid';
   icon: React.JSX.Element;
   /** 長押しで表示するサブツール */
   subTools?: SubToolDef[];
@@ -17,7 +16,7 @@ interface ToolDef {
 
 interface SubToolDef {
   label: string;
-  shapeType: ShapeType;
+  shapeType: string;
   icon: React.JSX.Element;
 }
 
@@ -90,7 +89,6 @@ const TOOLS: (ToolDef | 'separator')[] = [
     id: 'shape',
     label: 'シェイプ追加',
     shortcut: 'Q',
-    createsLayer: 'shape',
     subTools: SHAPE_SUB_TOOLS,
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -129,6 +127,8 @@ export function Toolbar() {
   // 長押しタイマー
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const didLongPress = useRef(false);
+  // ボタン要素のref（Portal位置計算用）
+  const btnRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
   // サブメニュー外クリックで閉じる
   useEffect(() => {
@@ -140,8 +140,7 @@ export function Toolbar() {
 
   const handleToolClick = useCallback((tool: ToolDef) => {
     setTool(tool.id);
-    // シェイプはプレビュー上のドラッグで追加するのでここでは追加しない
-    if (tool.createsLayer && tool.createsLayer !== 'shape') {
+    if (tool.createsLayer) {
       addLayer(tool.createsLayer);
     }
   }, [setTool, addLayer]);
@@ -172,13 +171,14 @@ export function Toolbar() {
       clearTimeout(longPressTimer.current);
       longPressTimer.current = null;
     }
+    didLongPress.current = false;
   }, []);
 
   const handleSubToolClick = useCallback((tool: ToolDef, sub: SubToolDef) => {
-    setActiveShapeType(sub.shapeType);
+    setActiveShapeType(sub.shapeType as any);
     setTool(tool.id);
     setSubMenuToolId(null);
-  }, [setTool]);
+  }, [setTool, setActiveShapeType]);
 
   // 現在のシェイプタイプに応じたアイコン
   const getShapeIcon = useCallback(() => {
@@ -200,7 +200,7 @@ export function Toolbar() {
         return (
           <div key={tool.id} className="tool-btn-wrapper">
             <button
-              data-tool-id={tool.id}
+              ref={(el) => { btnRefs.current[tool.id] = el; }}
               className={`tool-btn${activeTool === tool.id ? ' active' : ''}`}
               title={`${tool.label} (${tool.shortcut})`}
               onMouseDown={(e) => {
@@ -219,7 +219,7 @@ export function Toolbar() {
 
             {/* サブメニュー (Portalでbodyに描画) */}
             {subMenuToolId === tool.id && tool.subTools && (() => {
-              const btnEl = document.querySelector(`[data-tool-id="${tool.id}"]`);
+              const btnEl = btnRefs.current[tool.id];
               if (!btnEl) return null;
               const rect = btnEl.getBoundingClientRect();
               return createPortal(
