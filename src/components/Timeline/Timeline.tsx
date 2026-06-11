@@ -713,6 +713,20 @@ export function Timeline() {
 
         {/* 右側: トラック */}
         <div className="timeline-tracks" ref={trackContainerRef} onScroll={() => setNavScrollLeft(trackContainerRef.current?.scrollLeft || 0)}>
+          {/* ナビゲーター（ズームスライダー） */}
+          <TimelineNavigator
+            trackContainerRef={trackContainerRef}
+            totalFrames={totalFrames()}
+            zoom={zoom}
+            navRef={navRef}
+            navDrag={navDrag}
+            setNavDrag={setNavDrag}
+            setZoom={setZoom}
+            userZoomedRef={userZoomedRef}
+            calcFitZoom={calcFitZoom}
+            pendingScrollLeftRef={pendingScrollLeftRef}
+            navScrollLeft={navScrollLeft}
+          />
           <div
             ref={rulerRef}
             className="timeline-ruler"
@@ -899,21 +913,6 @@ export function Timeline() {
               style={{ left: frameToX(currentFrame) }}
             />
           </div>
-
-          {/* ナビゲーター（ズームスライダー） */}
-          <TimelineNavigator
-            trackContainerRef={trackContainerRef}
-            totalFrames={totalFrames()}
-            zoom={zoom}
-            navRef={navRef}
-            navDrag={navDrag}
-            setNavDrag={setNavDrag}
-            setZoom={setZoom}
-            userZoomedRef={userZoomedRef}
-            calcFitZoom={calcFitZoom}
-            pendingScrollLeftRef={pendingScrollLeftRef}
-            navScrollLeft={navScrollLeft}
-          />
         </div>
       </div>
     </div>
