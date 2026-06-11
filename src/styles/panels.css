@@ -57,8 +57,12 @@
   color: var(--color-text-primary) !important;
 }
 
-/* タブセットのタブストリップ - 視覚的に非表示（DOM維持でD&D可能） */
+/* タブセットのタブストリップ - タブ1つの時は非表示、複数の時は表示 */
 .flexlayout__tabset_tabbar_outer {
+  background: var(--color-bg-darker) !important;
+  border-bottom: 1px solid var(--color-border) !important;
+}
+.flexlayout__tabset_tabbar_outer:has(.flexlayout__tab_button:only-child) {
   height: 0 !important;
   min-height: 0 !important;
   overflow: hidden !important;
@@ -67,6 +71,9 @@
 }
 
 .flexlayout__tabset_tabbar_inner {
+  background: transparent !important;
+}
+.flexlayout__tabset_tabbar_inner:has(.flexlayout__tab_button:only-child) {
   height: 0 !important;
   min-height: 0 !important;
   overflow: hidden !important;

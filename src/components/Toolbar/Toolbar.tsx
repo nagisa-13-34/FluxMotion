@@ -1,5 +1,6 @@
 import { useUIStore, type ToolType } from '../../stores/uiStore';
 import { useLayerStore } from '../../stores/layerStore';
+import { DraggablePanelHeader } from '../common/DraggablePanelHeader';
 
 interface ToolDef {
   id: ToolType;
@@ -86,6 +87,9 @@ export function Toolbar() {
 
   return (
     <div className="toolbar">
+      <DraggablePanelHeader panelId="toolbar">
+        ツール
+      </DraggablePanelHeader>
       {TOOLS.map((tool, idx) => {
         if (tool === 'separator') {
           return <div key={`sep-${idx}`} className="tool-separator" />;
