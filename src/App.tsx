@@ -170,6 +170,27 @@ export default function App() {
             useTimelineStore.getState().setCurrentFrame(0);
             useHistoryStore.getState().clearHistory();
             break;
+          case 'i': {
+            e.preventDefault();
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = 'image/*,video/*';
+            input.multiple = true;
+            input.onchange = () => {
+              if (!input.files) return;
+              useLayerStore.getState().saveSnapshot();
+              for (const file of Array.from(input.files)) {
+                const url = URL.createObjectURL(file);
+                const isVideo = file.type.startsWith('video/');
+                useLayerStore.getState().addLayer(isVideo ? 'video' : 'image', {
+                  mediaSource: url,
+                  name: file.name.replace(/\.[^.]+$/, ''),
+                });
+              }
+            };
+            input.click();
+            break;
+          }
         }
         return;
       }
@@ -182,6 +203,29 @@ export default function App() {
           useLayerStore.getState().deleteSelected();
           renderCallbackRef.current?.();
           break;
+        // ツール切り替えショートカット
+        case 'KeyV':
+          useUIStore.getState().setTool('select');
+          break;
+        case 'KeyH':
+          useUIStore.getState().setTool('hand');
+          break;
+        case 'KeyT':
+          useUIStore.getState().setTool('text');
+          break;
+        case 'KeyQ':
+          useUIStore.getState().setTool('shape');
+          break;
+        case 'KeyG':
+          useUIStore.getState().setTool('pen');
+          break;
+        // 全選択 (A)
+        case 'KeyA': {
+          e.preventDefault();
+          const ls = useLayerStore.getState();
+          ls.selectAll();
+          break;
+        }
         case 'KeyU': {
           const uiState = useUIStore.getState();
           const layerState = useLayerStore.getState();

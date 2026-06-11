@@ -13,6 +13,8 @@ export class Renderer {
   private width: number;
   private height: number;
   private _backgroundColor: string;
+  /** メディアキャッシュ（src → ロード済みエレメント） */
+  private mediaCache: Map<string, HTMLImageElement | HTMLVideoElement> = new Map();
 
   constructor(canvas: HTMLCanvasElement, width: number, height: number) {
     this.canvas = canvas;
@@ -72,7 +74,7 @@ export class Renderer {
       // キーフレームアニメーション + エクスプレッション + 親子継承からトランスフォームを取得
       const transform = this.resolveWorldTransform(layer, layers, currentFrame, animations);
 
-      const renderContent = () => {
+       const renderContent = () => {
         switch (layer.type) {
           case 'solid':
             this.renderSolid(ctx, layer);
@@ -82,6 +84,12 @@ export class Renderer {
             break;
           case 'shape':
             this.renderShape(ctx, layer, currentFrame, animations);
+            break;
+          case 'image':
+            this.renderImage(ctx, layer);
+            break;
+          case 'video':
+            this.renderVideo(ctx, layer, currentFrame);
             break;
           default:
             this.renderPlaceholder(ctx, layer);
@@ -598,6 +606,62 @@ export class Renderer {
     ctx.quadraticCurveTo(x, y, x + r, y);
     ctx.closePath();
     ctx.fill();
+  }
+
+  /** 画像レイヤー描画 */
+  private renderImage(ctx: CanvasRenderingContext2D, layer: Layer) {
+    const src = layer.mediaSource;
+    if (!src) {
+      this.renderPlaceholder(ctx, layer);
+      return;
+    }
+
+    let img = this.mediaCache.get(src) as HTMLImageElement | undefined;
+    if (!img) {
+      img = new Image();
+      img.src = src;
+      this.mediaCache.set(src, img);
+    }
+
+    if (img.complete && img.naturalWidth > 0) {
+      const w = img.naturalWidth;
+      const h = img.naturalHeight;
+      ctx.drawImage(img, -w / 2, -h / 2, w, h);
+    } else {
+      this.renderPlaceholder(ctx, layer);
+    }
+  }
+
+  /** 動画レイヤー描画 */
+  private renderVideo(ctx: CanvasRenderingContext2D, layer: Layer, frame: number) {
+    const src = layer.mediaSource;
+    if (!src) {
+      this.renderPlaceholder(ctx, layer);
+      return;
+    }
+
+    let video = this.mediaCache.get(src) as HTMLVideoElement | undefined;
+    if (!video) {
+      video = document.createElement('video');
+      video.src = src;
+      video.preload = 'auto';
+      video.muted = true;
+      this.mediaCache.set(src, video);
+    }
+
+    // フレーム位置にシーク
+    const time = (frame - layer.inPoint) / this._fps;
+    if (Math.abs(video.currentTime - time) > 0.05) {
+      video.currentTime = Math.max(0, time);
+    }
+
+    if (video.readyState >= 2 && video.videoWidth > 0) {
+      const w = video.videoWidth;
+      const h = video.videoHeight;
+      ctx.drawImage(video, -w / 2, -h / 2, w, h);
+    } else {
+      this.renderPlaceholder(ctx, layer);
+    }
   }
 
   /** プレースホルダー描画 */

@@ -561,7 +561,86 @@ export function Preview({ onRenderReady }: PreviewProps) {
                   e.stopPropagation();
                   startTextEdit(layer);
                 }}
-              />
+              >
+                {/* リサイズハンドル（選択中のみ） */}
+                {isSelected && !isEditing && !layer.locked && (() => {
+                  const handleSize = 8;
+                  const half = handleSize / 2;
+                  // 8方向: tl, t, tr, r, br, b, bl, l
+                  const handles: { pos: string; cursor: string; dx: number; dy: number; sx: number; sy: number }[] = [
+                    { pos: 'tl', cursor: 'nwse-resize', dx: -half,      dy: -half,      sx: -1, sy: -1 },
+                    { pos: 't',  cursor: 'ns-resize',   dx: w/2 - half, dy: -half,      sx:  0, sy: -1 },
+                    { pos: 'tr', cursor: 'nesw-resize', dx: w - half,   dy: -half,      sx:  1, sy: -1 },
+                    { pos: 'r',  cursor: 'ew-resize',   dx: w - half,   dy: h/2 - half, sx:  1, sy:  0 },
+                    { pos: 'br', cursor: 'nwse-resize', dx: w - half,   dy: h - half,   sx:  1, sy:  1 },
+                    { pos: 'b',  cursor: 'ns-resize',   dx: w/2 - half, dy: h - half,   sx:  0, sy:  1 },
+                    { pos: 'bl', cursor: 'nesw-resize', dx: -half,      dy: h - half,   sx: -1, sy:  1 },
+                    { pos: 'l',  cursor: 'ew-resize',   dx: -half,      dy: h/2 - half, sx: -1, sy:  0 },
+                  ];
+                  return handles.map(handle => (
+                    <div
+                      key={handle.pos}
+                      className="resize-handle"
+                      style={{
+                        position: 'absolute',
+                        left: handle.dx,
+                        top: handle.dy,
+                        width: handleSize,
+                        height: handleSize,
+                        cursor: handle.cursor,
+                        background: 'var(--color-accent)',
+                        border: '1px solid #fff',
+                        borderRadius: 1,
+                        zIndex: 10,
+                      }}
+                      onMouseDown={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        const startMX = e.clientX;
+                        const startMY = e.clientY;
+                        const origScale: [number, number] = [...resolved.scale];
+                        // シェイプの場合はwidth/heightも変更
+                        const origShapeW = layer.shapeData?.width ?? rawW;
+                        const origShapeH = layer.shapeData?.height ?? rawH;
+                        let resized = false;
+
+                        const onResizeMove = (me: MouseEvent) => {
+                          const pixDX = (me.clientX - startMX);
+                          const pixDY = (me.clientY - startMY);
+                          if (!resized && (Math.abs(pixDX) > 2 || Math.abs(pixDY) > 2)) {
+                            resized = true;
+                            useLayerStore.getState().saveSnapshot();
+                          }
+                          if (!resized) return;
+
+                          // スケールベースのリサイズ
+                          const scaleFactorX = handle.sx !== 0 ? (pixDX * handle.sx) / (w / 2) : 0;
+                          const scaleFactorY = handle.sy !== 0 ? (pixDY * handle.sy) / (h / 2) : 0;
+
+                          const newScaleX = handle.sx !== 0
+                            ? Math.max(5, Math.round((origScale[0] * (1 + scaleFactorX)) * 10) / 10)
+                            : origScale[0];
+                          const newScaleY = handle.sy !== 0
+                            ? Math.max(5, Math.round((origScale[1] * (1 + scaleFactorY)) * 10) / 10)
+                            : origScale[1];
+
+                          useLayerStore.getState().updateTransform(
+                            layer.id, 'scale', [newScaleX, newScaleY]
+                          );
+                        };
+
+                        const onResizeUp = () => {
+                          window.removeEventListener('mousemove', onResizeMove);
+                          window.removeEventListener('mouseup', onResizeUp);
+                        };
+
+                        window.addEventListener('mousemove', onResizeMove);
+                        window.addEventListener('mouseup', onResizeUp);
+                      }}
+                    />
+                  ));
+                })()}
+              </div>
             );
           })}
 

@@ -151,7 +151,41 @@ export function MenuBar() {
                     保存 <span className="shortcut">Ctrl+S</span>
                   </div>
                   <div className="dropdown-separator" />
-                  <div className="dropdown-item disabled">書き出し <span className="shortcut">Ctrl+Shift+E</span></div>
+                  <div className="dropdown-item" onClick={() => {
+                    const input = document.createElement('input');
+                    input.type = 'file';
+                    input.accept = 'image/*,video/*';
+                    input.multiple = true;
+                    input.onchange = () => {
+                      if (!input.files) return;
+                      useLayerStore.getState().saveSnapshot();
+                      for (const file of Array.from(input.files)) {
+                        const url = URL.createObjectURL(file);
+                        const isVideo = file.type.startsWith('video/');
+                        addLayer(isVideo ? 'video' : 'image', {
+                          mediaSource: url,
+                          name: file.name.replace(/\.[^.]+$/, ''),
+                        });
+                      }
+                      setActiveMenu(null);
+                    };
+                    input.click();
+                  }}>
+                    メディアをインポート <span className="shortcut">Ctrl+I</span>
+                  </div>
+                  <div className="dropdown-separator" />
+                  <div className="dropdown-item" onClick={() => {
+                    // 現在のフレームをPNGで書き出し
+                    const canvas = document.querySelector('.viewport-canvas') as HTMLCanvasElement;
+                    if (!canvas) return;
+                    const link = document.createElement('a');
+                    link.download = `frame_${useTimelineStore.getState().currentFrame}.png`;
+                    link.href = canvas.toDataURL('image/png');
+                    link.click();
+                    setActiveMenu(null);
+                  }}>
+                    フレームをPNGで書き出し <span className="shortcut">Ctrl+Shift+E</span>
+                  </div>
                 </>
               )}
               {menu === 'レイヤー' && (

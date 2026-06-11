@@ -22,6 +22,7 @@ interface LayerState {
   duplicateLayer: (id: string) => void;
   reorderLayer: (fromIndex: number, toIndex: number) => void;
   selectLayer: (id: string, multi?: boolean) => void;
+  selectAll: () => void;
   deselectAll: () => void;
 
   // -- プロパティ更新 --
@@ -199,6 +200,8 @@ export const useLayerStore = create<LayerState>((set, get) => ({
     }),
 
   deselectAll: () => set({ selectedLayerIds: [] }),
+
+  selectAll: () => set((s) => ({ selectedLayerIds: s.layers.map(l => l.id) })),
 
   updateLayer: (id, partial) =>
     set((s) => {
@@ -512,6 +515,74 @@ export const useLayerStore = create<LayerState>((set, get) => ({
         ),
       selectedLayerIds: [],
     }));
+  },
+
+  // -- クリップボード --
+  copyLayers: () => {
+    const { selectedLayerIds, layers, animations } = get();
+    if (selectedLayerIds.length === 0) return;
+    const copied = layers.filter(l => selectedLayerIds.includes(l.id));
+    const copiedAnims: Record<string, Record<string, AnimatedProperty>> = {};
+    for (const id of selectedLayerIds) {
+      if (animations[id]) copiedAnims[id] = JSON.parse(JSON.stringify(animations[id]));
+    }
+    clipboard = {
+      layers: JSON.parse(JSON.stringify(copied)),
+      animations: copiedAnims,
+    };
+  },
+
+  cutLayers: () => {
+    get().copyLayers();
+    get().deleteSelected();
+  },
+
+  pasteLayers: () => {
+    if (!clipboard || clipboard.layers.length === 0) return;
+    get().saveSnapshot();
+    const newIds: string[] = [];
+    const idMap: Record<string, string> = {};
+
+    // IDを再生成してペースト
+    const pastedLayers = clipboard.layers.map(l => {
+      const newId = generateId();
+      idMap[l.id] = newId;
+      newIds.push(newId);
+      return {
+        ...l,
+        id: newId,
+        name: `${l.name} コピー`,
+      };
+    });
+
+    // 親子関係のIDを更新
+    for (const layer of pastedLayers) {
+      if (layer.parentId && idMap[layer.parentId]) {
+        layer.parentId = idMap[layer.parentId];
+      } else if (layer.parentId) {
+        // コピー元の親がペースト対象外ならnullにリセット
+        layer.parentId = null;
+      }
+    }
+
+    // アニメーションもIDを更新してコピー
+    const newAnims = { ...get().animations };
+    for (const [oldId, anim] of Object.entries(clipboard.animations)) {
+      if (idMap[oldId]) {
+        newAnims[idMap[oldId]] = JSON.parse(JSON.stringify(anim));
+      }
+    }
+
+    set((s) => ({
+      layers: [...pastedLayers, ...s.layers],
+      animations: newAnims,
+      selectedLayerIds: newIds,
+    }));
+  },
+
+  duplicateSelected: () => {
+    get().copyLayers();
+    get().pasteLayers();
   },
 
   // -- Undo/Redo --
