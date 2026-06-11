@@ -514,23 +514,24 @@ export class Renderer {
       ctx.lineCap = shape.strokeLineCap ?? 'butt';
     }
 
+    const shapeW = shape.width ?? 200;
+    const shapeH = shape.height ?? 200;
+
     switch (shape.shapeType) {
       case 'rectangle':
-        this.renderRectangle(ctx, cornerRadius, hasStroke);
+        this.renderRectangle(ctx, shapeW, shapeH, cornerRadius, hasStroke);
         break;
       case 'ellipse':
-        this.renderEllipse(ctx, hasStroke);
+        this.renderEllipse(ctx, shapeW, shapeH, hasStroke);
         break;
       case 'star':
-        this.renderStar(ctx, 5, 100, 45, hasStroke);
+        this.renderStar(ctx, 5, Math.min(shapeW, shapeH) / 2, Math.min(shapeW, shapeH) / 4.5, hasStroke);
         break;
     }
   }
 
   /** 矩形描画 */
-  private renderRectangle(ctx: CanvasRenderingContext2D, cornerRadius: number, hasStroke: boolean) {
-    const w = 200;
-    const h = 200;
+  private renderRectangle(ctx: CanvasRenderingContext2D, w: number, h: number, cornerRadius: number, hasStroke: boolean) {
     if (cornerRadius > 0) {
       this.roundRect(ctx, -w / 2, -h / 2, w, h, cornerRadius);
     } else {
@@ -541,10 +542,10 @@ export class Renderer {
     }
   }
 
-  /** 楕円描画 */
-  private renderEllipse(ctx: CanvasRenderingContext2D, hasStroke: boolean) {
+  /** 楽円描画 */
+  private renderEllipse(ctx: CanvasRenderingContext2D, w: number, h: number, hasStroke: boolean) {
     ctx.beginPath();
-    ctx.ellipse(0, 0, 100, 100, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, 0, w / 2, h / 2, 0, 0, Math.PI * 2);
     ctx.fill();
     if (hasStroke) ctx.stroke();
   }

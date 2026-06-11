@@ -26,6 +26,9 @@ export function Preview({ onRenderReady }: PreviewProps) {
   const animations = useLayerStore((s) => s.animations);
   const viewportZoom = useUIStore((s) => s.viewportZoom);
   const setViewportZoom = useUIStore((s) => s.setViewportZoom);
+  const activeTool = useUIStore((s) => s.activeTool);
+  const activeShapeType = useUIStore((s) => s.activeShapeType);
+  const setTool = useUIStore((s) => s.setTool);
   const isPlaying = useTimelineStore((s) => s.isPlaying);
   const currentFrame = useTimelineStore((s) => s.currentFrame);
 
@@ -37,6 +40,15 @@ export function Preview({ onRenderReady }: PreviewProps) {
   // レンダラーモード
   const [rendererMode, setRendererMode] = useState<'canvas2d' | 'webgpu'>('canvas2d');
   const [gpuAvailable, setGpuAvailable] = useState(false);
+
+  // シェイプ描画用のstate
+  const [shapeDraw, setShapeDraw] = useState<{
+    drawing: boolean;
+    startX: number;
+    startY: number;
+    currentX: number;
+    currentY: number;
+  } | null>(null);
 
   const scale = viewportZoom / 100;
   const canvasWidth = Math.round(settings.width * scale);
@@ -149,10 +161,73 @@ export function Preview({ onRenderReady }: PreviewProps) {
 
   // キャンバスをクリック → 選択解除
   const handleCanvasClick = () => {
-    if (!editingLayerId) {
+    if (!editingLayerId && activeTool === 'select') {
       useLayerStore.getState().deselectAll();
     }
   };
+
+  // シェイプ描画: マウスダウン
+  const handleShapeMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (activeTool !== 'shape') return;
+    e.preventDefault();
+    const container = e.currentTarget;
+    const rect = container.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    setShapeDraw({ drawing: true, startX: x, startY: y, currentX: x, currentY: y });
+
+    const handleMove = (ev: MouseEvent) => {
+      setShapeDraw(prev => prev ? { ...prev, currentX: ev.clientX - rect.left, currentY: ev.clientY - rect.top } : null);
+    };
+
+    const handleUp = (ev: MouseEvent) => {
+      window.removeEventListener('mousemove', handleMove);
+      window.removeEventListener('mouseup', handleUp);
+
+      const endX = ev.clientX - rect.left;
+      const endY = ev.clientY - rect.top;
+      const startX = shapeDraw?.startX ?? x;
+      const startY = shapeDraw?.startY ?? y;
+
+      // コンポ座標に変換
+      const compX1 = (Math.min(x, endX)) / scale;
+      const compY1 = (Math.min(y, endY)) / scale;
+      const compW = Math.abs(endX - x) / scale;
+      const compH = Math.abs(endY - y) / scale;
+
+      // 最小サイズチェック
+      if (compW > 5 && compH > 5) {
+        const shapeType = useUIStore.getState().activeShapeType;
+        useLayerStore.getState().saveSnapshot();
+        useLayerStore.getState().addLayer('shape', {
+          shapeData: {
+            shapeType,
+            fill: '#A29BFE',
+            fillOpacity: 100,
+            stroke: 'transparent',
+            strokeWidth: 0,
+            strokeLineCap: 'butt',
+            cornerRadius: 0,
+            width: Math.round(compW),
+            height: Math.round(compH),
+          },
+          transform: {
+            position: [Math.round(compX1 + compW / 2), Math.round(compY1 + compH / 2)],
+            scale: [100, 100],
+            rotation: 0,
+            anchorPoint: [0, 0],
+            opacity: 100,
+          },
+        });
+        // 描画後は選択ツールに戻る
+        setTool('select');
+      }
+      setShapeDraw(null);
+    };
+
+    window.addEventListener('mousemove', handleMove);
+    window.addEventListener('mouseup', handleUp);
+  }, [activeTool, scale, setTool]);
 
   // ── テキスト編集 ──
   const startTextEdit = (layer: Layer) => {
@@ -209,7 +284,7 @@ export function Preview({ onRenderReady }: PreviewProps) {
         return [maxW * fontSize, lines.length * fontSize * 1.4];
       }
       case 'shape':
-        return [200, 200];
+        return [layer.shapeData?.width ?? 200, layer.shapeData?.height ?? 200];
       case 'solid':
         return [settings.width, settings.height];
       default:
@@ -322,6 +397,8 @@ export function Preview({ onRenderReady }: PreviewProps) {
         ref={containerRef}
         className="viewport-canvas-container"
         onWheel={handleWheel}
+        onMouseDown={handleShapeMouseDown}
+        style={{ cursor: activeTool === 'shape' ? 'crosshair' : undefined }}
       >
         {/* キャンバス + オーバーレイを同じ位置に重ねる */}
         <div style={{ position: 'relative', width: canvasWidth, height: canvasHeight }}>
@@ -347,6 +424,57 @@ export function Preview({ onRenderReady }: PreviewProps) {
             }}
             onClick={handleCanvasClick}
           />
+
+          {/* シェイプ描画プレビュー */}
+          {shapeDraw && (() => {
+            const x = Math.min(shapeDraw.startX, shapeDraw.currentX);
+            const y = Math.min(shapeDraw.startY, shapeDraw.currentY);
+            const w = Math.abs(shapeDraw.currentX - shapeDraw.startX);
+            const h = Math.abs(shapeDraw.currentY - shapeDraw.startY);
+            const shapeType = activeShapeType;
+            return (
+              <div
+                style={{
+                  position: 'absolute',
+                  left: x,
+                  top: y,
+                  width: w,
+                  height: h,
+                  pointerEvents: 'none',
+                  zIndex: 9999,
+                }}
+              >
+                <svg width={w} height={h} style={{ overflow: 'visible' }}>
+                  {shapeType === 'ellipse' ? (
+                    <ellipse
+                      cx={w / 2} cy={h / 2} rx={w / 2} ry={h / 2}
+                      fill="rgba(162, 155, 254, 0.2)"
+                      stroke="#A29BFE"
+                      strokeWidth="2"
+                      strokeDasharray="6 3"
+                    />
+                  ) : shapeType === 'star' ? (
+                    <polygon
+                      points={generateStarPoints(w / 2, h / 2, Math.min(w, h) / 2, Math.min(w, h) / 4, 5)}
+                      fill="rgba(162, 155, 254, 0.2)"
+                      stroke="#A29BFE"
+                      strokeWidth="2"
+                      strokeDasharray="6 3"
+                    />
+                  ) : (
+                    <rect
+                      x="0" y="0" width={w} height={h}
+                      fill="rgba(162, 155, 254, 0.2)"
+                      stroke="#A29BFE"
+                      strokeWidth="2"
+                      strokeDasharray="6 3"
+                      rx="2"
+                    />
+                  )}
+                </svg>
+              </div>
+            );
+          })()}
 
           {/* レイヤーオーバーレイ */}
           {visibleLayers.map((layer) => {
@@ -557,4 +685,15 @@ function formatTimecode(frame: number, fps: number): string {
   const secs = Math.floor(totalSeconds % 60);
   const f = Math.round(frame % fps);
   return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}:${String(f).padStart(2, '0')}`;
+}
+
+/** 星形のSVG points属性を生成 */
+function generateStarPoints(cx: number, cy: number, outerR: number, innerR: number, points: number): string {
+  const pts: string[] = [];
+  for (let i = 0; i < points * 2; i++) {
+    const angle = (Math.PI / points) * i - Math.PI / 2;
+    const r = i % 2 === 0 ? outerR : innerR;
+    pts.push(`${cx + r * Math.cos(angle)},${cy + r * Math.sin(angle)}`);
+  }
+  return pts.join(' ');
 }

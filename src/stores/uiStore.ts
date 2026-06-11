@@ -3,6 +3,7 @@ import { Model, Actions, DockLocation } from 'flexlayout-react';
 import type { IJsonModel } from 'flexlayout-react';
 
 export type ToolType = 'select' | 'hand' | 'text' | 'shape' | 'pen';
+import type { ShapeType } from '../types/layer';
 
 /** パネルID定数 */
 export const PANEL_IDS = {
@@ -159,6 +160,10 @@ interface UIState {
   /** タイムラインで展開中のレイヤーID */
   expandedLayerIds: string[];
 
+  /** 現在選択中のシェイプタイプ */
+  activeShapeType: ShapeType;
+  setActiveShapeType: (type: ShapeType) => void;
+
   setTool: (tool: ToolType) => void;
   setActiveMenu: (menu: string | null) => void;
   showContextMenu: (x: number, y: number, items: ContextMenuItem[]) => void;
@@ -181,6 +186,7 @@ interface UIState {
 
 export const useUIStore = create<UIState>((set) => ({
   activeTool: 'select',
+  activeShapeType: 'rectangle',
   activeMenu: null,
   contextMenu: { show: false, x: 0, y: 0, items: [] },
   viewportZoom: 50,
@@ -189,6 +195,7 @@ export const useUIStore = create<UIState>((set) => ({
   showCompSettings: false,
 
   setTool: (tool) => set({ activeTool: tool }),
+  setActiveShapeType: (type) => set({ activeShapeType: type }),
   setActiveMenu: (menu) => set({ activeMenu: menu }),
 
   showContextMenu: (x, y, items) =>

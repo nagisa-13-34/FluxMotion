@@ -52,6 +52,10 @@ export interface ShapeData {
   cornerRadius?: number;
   /** パスのポイント */
   points?: [number, number][];
+  /** シェイプの幅 */
+  width?: number;
+  /** シェイプの高さ */
+  height?: number;
 }
 
 /** レイヤーの基本データ */

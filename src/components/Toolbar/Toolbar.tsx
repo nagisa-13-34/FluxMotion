@@ -120,10 +120,10 @@ const LONG_PRESS_DELAY = 400;
 export function Toolbar() {
   const activeTool = useUIStore((s) => s.activeTool);
   const setTool = useUIStore((s) => s.setTool);
+  const activeShapeType = useUIStore((s) => s.activeShapeType);
+  const setActiveShapeType = useUIStore((s) => s.setActiveShapeType);
   const addLayer = useLayerStore((s) => s.addLayer);
 
-  // 現在選択中のシェイプタイプ（アイコンに反映）
-  const [activeShapeType, setActiveShapeType] = useState<ShapeType>('rectangle');
   // サブメニュー表示状態
   const [subMenuToolId, setSubMenuToolId] = useState<string | null>(null);
   // 長押しタイマー
@@ -140,22 +140,11 @@ export function Toolbar() {
 
   const handleToolClick = useCallback((tool: ToolDef) => {
     setTool(tool.id);
-    if (tool.createsLayer === 'shape') {
-      addLayer('shape', {
-        shapeData: {
-          shapeType: activeShapeType,
-          fill: '#A29BFE',
-          fillOpacity: 100,
-          stroke: 'transparent',
-          strokeWidth: 0,
-          strokeLineCap: 'butt',
-          cornerRadius: 0,
-        },
-      });
-    } else if (tool.createsLayer) {
+    // シェイプはプレビュー上のドラッグで追加するのでここでは追加しない
+    if (tool.createsLayer && tool.createsLayer !== 'shape') {
       addLayer(tool.createsLayer);
     }
-  }, [setTool, addLayer, activeShapeType]);
+  }, [setTool, addLayer]);
 
   const handleMouseDown = useCallback((tool: ToolDef) => {
     didLongPress.current = false;
