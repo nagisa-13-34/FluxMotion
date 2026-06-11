@@ -52,7 +52,7 @@ export function Properties() {
   const [exprOpen, setExprOpen] = useState<Record<string, boolean>>({});
 
   // レイヤー選択が変わったらエクスプレッション欄を閉じる（別レイヤーの設定が残らないように）
-  const selectedLayerId = selectedLayer?.id;
+  const selectedLayerId = selectedLayerIds[0];
   useEffect(() => {
     setExprOpen({});
   }, [selectedLayerId]);
