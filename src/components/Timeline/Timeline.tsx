@@ -674,7 +674,7 @@ export function Timeline() {
 
         {/* 右側: トラック */}
         <div className="timeline-tracks" ref={hScrollRef} onScroll={handleHScroll}>
-          <div style={{ minWidth: totalContentWidth + 100, position: 'relative' }}>
+          <div style={{ minWidth: totalContentWidth + 100, display: 'flex', flexDirection: 'column', height: '100%' }}>
           <div
             ref={rulerRef}
             className="timeline-ruler"
