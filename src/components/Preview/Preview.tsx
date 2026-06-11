@@ -83,6 +83,8 @@ export function Preview({ onRenderReady }: PreviewProps) {
     renderer.fps = settings.fps;
     rendererRef.current = renderer;
     gpuRendererRef.current = null;
+    // 初期化直後に再描画
+    requestAnimationFrame(() => render());
   }, [rendererMode, settings.width, settings.height, settings.backgroundColor, settings.fps]);
 
   // WebGPUレンダラー初期化
