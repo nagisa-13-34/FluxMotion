@@ -266,7 +266,11 @@ export function Timeline() {
   const handleWheel = (e: React.WheelEvent) => {
     if (e.ctrlKey || e.metaKey) {
       e.preventDefault();
-      setZoom(zoom + (e.deltaY > 0 ? -1 : 1));
+      const total = totalFrames();
+      const containerW = trackContainerRef.current?.clientWidth || 800;
+      const minZoom = total > 0 ? containerW / total : 0.5;
+      const newZoom = zoom + (e.deltaY > 0 ? -1 : 1);
+      setZoom(Math.max(minZoom, newZoom));
     }
   };
 
