@@ -20,7 +20,7 @@ import { EASING_PRESETS } from './types/keyframe';
 import { downloadProject, openProjectPicker } from './stores/engine/projectIO';
 
 /** Layout ref を全パネルからアクセスするためのContext */
-export const LayoutContext = createContext<React.RefObject<Layout | null>>({ current: null });
+export const LayoutContext = createContext<React.RefObject<InstanceType<typeof Layout> | null>>({ current: null });
 
 export default function App() {
   const layoutRef = useRef<Layout>(null);
@@ -191,6 +191,22 @@ export default function App() {
             input.click();
             break;
           }
+          case 'a':
+            e.preventDefault();
+            useLayerStore.getState().selectAll();
+            break;
+          case 'e':
+            if (e.shiftKey) {
+              e.preventDefault();
+              const canvas = document.querySelector('.viewport-canvas') as HTMLCanvasElement;
+              if (canvas) {
+                const link = document.createElement('a');
+                link.download = `frame_${useTimelineStore.getState().currentFrame}.png`;
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+              }
+            }
+            break;
         }
         return;
       }
@@ -212,6 +228,8 @@ export default function App() {
           break;
         case 'KeyT':
           useUIStore.getState().setTool('text');
+          useLayerStore.getState().addLayer('text');
+          renderCallbackRef.current?.();
           break;
         case 'KeyQ':
           useUIStore.getState().setTool('shape');
@@ -219,13 +237,7 @@ export default function App() {
         case 'KeyG':
           useUIStore.getState().setTool('pen');
           break;
-        // 全選択 (A)
-        case 'KeyA': {
-          e.preventDefault();
-          const ls = useLayerStore.getState();
-          ls.selectAll();
-          break;
-        }
+
         case 'KeyU': {
           const uiState = useUIStore.getState();
           const layerState = useLayerStore.getState();

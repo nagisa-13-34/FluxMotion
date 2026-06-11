@@ -171,23 +171,24 @@ export function Preview({ onRenderReady }: PreviewProps) {
     if (activeTool !== 'shape') return;
     e.preventDefault();
     const container = e.currentTarget;
-    const rect = container.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    // キャンバスはcontainer内の最初の子div（position: relative）
+    const canvasDiv = container.firstElementChild as HTMLElement | null;
+    if (!canvasDiv) return;
+    const canvasRect = canvasDiv.getBoundingClientRect();
+    const x = e.clientX - canvasRect.left;
+    const y = e.clientY - canvasRect.top;
     setShapeDraw({ drawing: true, startX: x, startY: y, currentX: x, currentY: y });
 
     const handleMove = (ev: MouseEvent) => {
-      setShapeDraw(prev => prev ? { ...prev, currentX: ev.clientX - rect.left, currentY: ev.clientY - rect.top } : null);
+      setShapeDraw(prev => prev ? { ...prev, currentX: ev.clientX - canvasRect.left, currentY: ev.clientY - canvasRect.top } : null);
     };
 
     const handleUp = (ev: MouseEvent) => {
       window.removeEventListener('mousemove', handleMove);
       window.removeEventListener('mouseup', handleUp);
 
-      const endX = ev.clientX - rect.left;
-      const endY = ev.clientY - rect.top;
-      const startX = shapeDraw?.startX ?? x;
-      const startY = shapeDraw?.startY ?? y;
+      const endX = ev.clientX - canvasRect.left;
+      const endY = ev.clientY - canvasRect.top;
 
       // コンポ座標に変換
       const compX1 = (Math.min(x, endX)) / scale;
@@ -286,6 +287,10 @@ export function Preview({ onRenderReady }: PreviewProps) {
       case 'shape':
         return [layer.shapeData?.width ?? 200, layer.shapeData?.height ?? 200];
       case 'solid':
+        return [settings.width, settings.height];
+      case 'image':
+      case 'video':
+        // メディアレイヤーはデフォルトでコンポジションサイズを使用
         return [settings.width, settings.height];
       default:
         return [200, 100];
@@ -533,6 +538,7 @@ export function Preview({ onRenderReady }: PreviewProps) {
                   const startY = e.clientY;
                   const origPos: [number, number] = [...resolved.position];
                   let moved = false;
+                  document.body.style.cursor = 'move';
 
                   const onMove = (me: MouseEvent) => {
                     const dx = (me.clientX - startX) / scale;
@@ -550,6 +556,7 @@ export function Preview({ onRenderReady }: PreviewProps) {
                   };
 
                   const onUp = () => {
+                    document.body.style.cursor = '';
                     window.removeEventListener('mousemove', onMove);
                     window.removeEventListener('mouseup', onUp);
                   };
@@ -599,10 +606,9 @@ export function Preview({ onRenderReady }: PreviewProps) {
                         const startMX = e.clientX;
                         const startMY = e.clientY;
                         const origScale: [number, number] = [...resolved.scale];
-                        // シェイプの場合はwidth/heightも変更
-                        const origShapeW = layer.shapeData?.width ?? rawW;
-                        const origShapeH = layer.shapeData?.height ?? rawH;
                         let resized = false;
+                        // ドラッグ中のカーソルをbody全体にロック
+                        document.body.style.cursor = handle.cursor;
 
                         const onResizeMove = (me: MouseEvent) => {
                           const pixDX = (me.clientX - startMX);
@@ -630,6 +636,7 @@ export function Preview({ onRenderReady }: PreviewProps) {
                         };
 
                         const onResizeUp = () => {
+                          document.body.style.cursor = '';
                           window.removeEventListener('mousemove', onResizeMove);
                           window.removeEventListener('mouseup', onResizeUp);
                         };

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useProjectStore } from '../../stores/projectStore';
 import { useTimelineStore } from '../../stores/timelineStore';
 import { useUIStore } from '../../stores/uiStore';
@@ -110,6 +110,20 @@ export function MenuBar() {
     useLayerStore.getState().redo();
     setActiveMenu(null);
   };
+
+  // メニュー外クリックで閉じる
+  useEffect(() => {
+    if (!activeMenu) return;
+    const handleClickOutside = () => setActiveMenu(null);
+    // 少し遅延させてメニュー自体のクリックイベントが先に処理されるようにする
+    const timer = setTimeout(() => {
+      window.addEventListener('click', handleClickOutside);
+    }, 0);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('click', handleClickOutside);
+    };
+  }, [activeMenu, setActiveMenu]);
 
   return (
     <div className="menubar">
