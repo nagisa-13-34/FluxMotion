@@ -79,17 +79,44 @@ export function Timeline() {
     }
   };
 
-  // フレーム→ピクセル変換
+  // フレーム→ピクセル変換（絶対位置）
   const frameToX = useCallback(
-    (frame: number) => (frame - scrollFrame) * zoom,
-    [zoom, scrollFrame],
+    (frame: number) => frame * zoom,
+    [zoom],
   );
 
-  // ピクセル→フレーム変換
+  // ピクセル→フレーム変換（コンテナ内クリック位置 + スクロールオフセット）
   const xToFrame = useCallback(
-    (x: number) => Math.round(x / zoom + scrollFrame),
-    [zoom, scrollFrame],
+    (x: number) => {
+      const scrollLeft = hScrollRef.current?.scrollLeft || 0;
+      return Math.round((x + scrollLeft) / zoom);
+    },
+    [zoom],
   );
+
+  // コンポ全長のピクセル幅
+  const totalContentWidth = totalFrames() * zoom;
+
+  // 水平スクロール ref
+  const hScrollRef = useRef<HTMLDivElement>(null);
+
+  // 水平スクロール → scrollFrame 同期
+  const handleHScroll = useCallback(() => {
+    const el = hScrollRef.current;
+    if (!el) return;
+    const newScrollFrame = el.scrollLeft / zoom;
+    setScrollFrame(Math.max(0, newScrollFrame));
+  }, [zoom, setScrollFrame]);
+
+  // scrollFrame 変更 → スクロール位置同期（再生時オートスクロール用）
+  useEffect(() => {
+    const el = hScrollRef.current;
+    if (!el) return;
+    const targetLeft = scrollFrame * zoom;
+    if (Math.abs(el.scrollLeft - targetLeft) > 1) {
+      el.scrollLeft = targetLeft;
+    }
+  }, [scrollFrame, zoom]);
 
   // ルーラークリック → プレイヘッド移動
   const handleRulerMouseDown = (e: React.MouseEvent) => {
@@ -275,24 +302,26 @@ export function Timeline() {
   // ── 再生時オートスクロール ──
   useEffect(() => {
     if (!isPlaying) return;
-    const trackWidth = rulerRef.current?.offsetWidth || 800;
-    const playheadX = (currentFrame - scrollFrame) * zoom;
-    // プレイヘッドが表示領域の右端80%を超えたらスクロール
-    if (playheadX > trackWidth * 0.8) {
-      setScrollFrame(currentFrame - Math.floor(trackWidth * 0.2 / zoom));
+    const el = hScrollRef.current;
+    if (!el) return;
+    const viewWidth = el.clientWidth;
+    const playheadAbsX = currentFrame * zoom;
+    const scrollLeft = el.scrollLeft;
+    // プレイヘッドがビューの右80%を超えたらスクロール
+    if (playheadAbsX - scrollLeft > viewWidth * 0.8) {
+      el.scrollLeft = playheadAbsX - viewWidth * 0.2;
     }
-    // プレイヘッドが表示領域の左端より前に行ったら
-    if (playheadX < 0) {
-      setScrollFrame(Math.max(0, currentFrame - Math.floor(trackWidth * 0.1 / zoom)));
+    // プレイヘッドがビューの左端より前
+    if (playheadAbsX < scrollLeft) {
+      el.scrollLeft = Math.max(0, playheadAbsX - viewWidth * 0.1);
     }
-  }, [isPlaying, currentFrame, scrollFrame, zoom, setScrollFrame]);
+  }, [isPlaying, currentFrame, zoom]);
 
   // ルーラーの目盛り生成
   const renderRuler = () => {
     const ticks: React.JSX.Element[] = [];
-    const trackWidth = rulerRef.current?.offsetWidth || 800;
-    const startFrame = Math.max(0, Math.floor(scrollFrame));
-    const endFrame = Math.ceil(scrollFrame + trackWidth / zoom);
+    const endFrame = totalFrames();
+    const startFrame = 0;
 
     // 目盛り間隔を自動調整
     let step = 1;
@@ -644,7 +673,8 @@ export function Timeline() {
         </div>
 
         {/* 右側: トラック */}
-        <div className="timeline-tracks">
+        <div className="timeline-tracks" ref={hScrollRef} onScroll={handleHScroll}>
+          <div style={{ minWidth: totalContentWidth + 100, position: 'relative' }}>
           <div
             ref={rulerRef}
             className="timeline-ruler"
@@ -830,6 +860,7 @@ export function Timeline() {
               style={{ left: frameToX(currentFrame) }}
             />
           </div>
+          </div>{/* /minWidth wrapper */}
         </div>
       </div>
     </div>
