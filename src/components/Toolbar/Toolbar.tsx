@@ -177,19 +177,8 @@ export function Toolbar() {
   const handleSubToolClick = useCallback((tool: ToolDef, sub: SubToolDef) => {
     setActiveShapeType(sub.shapeType);
     setTool(tool.id);
-    addLayer('shape', {
-      shapeData: {
-        shapeType: sub.shapeType,
-        fill: '#A29BFE',
-        fillOpacity: 100,
-        stroke: 'transparent',
-        strokeWidth: 0,
-        strokeLineCap: 'butt',
-        cornerRadius: 0,
-      },
-    });
     setSubMenuToolId(null);
-  }, [setTool, addLayer]);
+  }, [setTool]);
 
   // 現在のシェイプタイプに応じたアイコン
   const getShapeIcon = useCallback(() => {
