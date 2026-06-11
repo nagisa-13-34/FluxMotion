@@ -14,8 +14,10 @@ import { useTimelineStore } from './stores/timelineStore';
 import { useProjectStore } from './stores/projectStore';
 import { useUIStore, PANEL_IDS } from './stores/uiStore';
 import { useLayerStore } from './stores/layerStore';
+import { useHistoryStore } from './stores/historyStore';
 import { AnimationLoop } from './stores/engine/animation';
 import { EASING_PRESETS } from './types/keyframe';
+import { downloadProject, openProjectPicker } from './stores/engine/projectIO';
 
 export default function App() {
   const { isPlaying, togglePlay } = useTimelineStore();
@@ -135,6 +137,34 @@ export default function App() {
           case 'k':
             e.preventDefault();
             useUIStore.getState().setShowCompSettings(true);
+            break;
+          case 's': {
+            e.preventDefault();
+            const s = useProjectStore.getState().settings;
+            const ls = useLayerStore.getState();
+            downloadProject(s, ls.layers, ls.animations);
+            break;
+          }
+          case 'o': {
+            e.preventDefault();
+            (async () => {
+              const data = await openProjectPicker();
+              if (data) {
+                useProjectStore.getState().updateSettings(data.settings);
+                useLayerStore.setState({ layers: data.layers, animations: data.animations, selectedLayerIds: [] });
+                useTimelineStore.getState().setCurrentFrame(0);
+                useHistoryStore.getState().clearHistory();
+              }
+            })();
+            break;
+          }
+          case 'n':
+            e.preventDefault();
+            useLayerStore.getState().saveSnapshot();
+            useProjectStore.getState().resetProject();
+            useLayerStore.setState({ layers: [], animations: {}, selectedLayerIds: [] });
+            useTimelineStore.getState().setCurrentFrame(0);
+            useHistoryStore.getState().clearHistory();
             break;
         }
         return;
