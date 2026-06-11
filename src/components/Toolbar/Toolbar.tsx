@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useUIStore, type ToolType } from '../../stores/uiStore';
 import { useLayerStore } from '../../stores/layerStore';
 import type { ShapeType } from '../../types/layer';
@@ -221,6 +222,7 @@ export function Toolbar() {
         return (
           <div key={tool.id} className="tool-btn-wrapper">
             <button
+              data-tool-id={tool.id}
               className={`tool-btn${activeTool === tool.id ? ' active' : ''}`}
               title={`${tool.label} (${tool.shortcut})`}
               onMouseDown={(e) => {
@@ -237,25 +239,32 @@ export function Toolbar() {
               )}
             </button>
 
-            {/* サブメニュー */}
-            {subMenuToolId === tool.id && tool.subTools && (
-              <div
-                className="subtool-menu"
-                onMouseDown={(e) => e.stopPropagation()}
-              >
-                {tool.subTools.map((sub) => (
-                  <button
-                    key={sub.shapeType}
-                    className={`subtool-item${activeShapeType === sub.shapeType ? ' active' : ''}`}
-                    title={sub.label}
-                    onClick={() => handleSubToolClick(tool, sub)}
-                  >
-                    {sub.icon}
-                    <span className="subtool-label">{sub.label}</span>
-                  </button>
-                ))}
-              </div>
-            )}
+            {/* サブメニュー (Portalでbodyに描画) */}
+            {subMenuToolId === tool.id && tool.subTools && (() => {
+              const btnEl = document.querySelector(`[data-tool-id="${tool.id}"]`);
+              if (!btnEl) return null;
+              const rect = btnEl.getBoundingClientRect();
+              return createPortal(
+                <div
+                  className="subtool-menu"
+                  style={{ position: 'fixed', left: rect.right + 2, top: rect.top }}
+                  onMouseDown={(e) => e.stopPropagation()}
+                >
+                  {tool.subTools.map((sub) => (
+                    <button
+                      key={sub.shapeType}
+                      className={`subtool-item${activeShapeType === sub.shapeType ? ' active' : ''}`}
+                      title={sub.label}
+                      onClick={() => handleSubToolClick(tool, sub)}
+                    >
+                      {sub.icon}
+                      <span className="subtool-label">{sub.label}</span>
+                    </button>
+                  ))}
+                </div>,
+                document.body
+              );
+            })()}
           </div>
         );
       })}
