@@ -99,26 +99,37 @@ export function Timeline() {
 
   // トラックコンテナ ref
   const trackContainerRef = useRef<HTMLDivElement>(null);
+  const userZoomedRef = useRef(false);
 
-  // コンポ全長がトラック幅に収まるようにzoomを自動計算
+  // フィットzoom計算
+  const calcFitZoom = useCallback(() => {
+    const el = trackContainerRef.current;
+    if (!el) return 2;
+    const total = totalFrames();
+    if (total <= 0) return 2;
+    const w = el.clientWidth;
+    if (w <= 0) return 2;
+    return Math.max(0.5, w / total);
+  }, [totalFrames]);
+
+  // 初期化 & リサイズ時のみ自動フィット（手動ズーム中はスキップ）
   useEffect(() => {
     const el = trackContainerRef.current;
     if (!el) return;
-    const total = totalFrames();
-    if (total <= 0) return;
 
-    const calcFitZoom = () => {
-      const w = el.clientWidth;
-      if (w <= 0) return;
-      const fitZoom = Math.max(0.5, w / total);
-      setZoom(fitZoom);
-    };
-    calcFitZoom();
+    // 初期化時はフィット
+    if (!userZoomedRef.current) {
+      setZoom(calcFitZoom());
+    }
 
-    const ro = new ResizeObserver(calcFitZoom);
+    const ro = new ResizeObserver(() => {
+      if (!userZoomedRef.current) {
+        setZoom(calcFitZoom());
+      }
+    });
     ro.observe(el);
     return () => ro.disconnect();
-  }, [totalFrames, setZoom]);
+  }, [calcFitZoom, setZoom]);
 
 
 
@@ -275,12 +286,12 @@ export function Timeline() {
       const el = trackContainerRef.current;
       if (!el) return;
 
-      const total = totalFrames();
-      const containerW = el.clientWidth;
-      const minZoom = total > 0 ? containerW / total : 0.5;
+      const fitZoom = calcFitZoom();
+      const newZoom = Math.max(fitZoom, zoom + (e.deltaY > 0 ? -1 : 1));
+      if (Math.abs(newZoom - zoom) < 0.01) return;
 
-      const newZoom = Math.max(minZoom, zoom + (e.deltaY > 0 ? -1 : 1));
-      if (newZoom === zoom) return;
+      // フィットzoomに戻ったら自動フィットを再有効化
+      userZoomedRef.current = newZoom > fitZoom + 0.01;
 
       // プレイヘッドのビューポート内位置を保持
       const playheadOldX = currentFrame * zoom;
@@ -290,8 +301,10 @@ export function Timeline() {
 
       // ズーム後にプレイヘッドが同じビューポート位置に来るようscrollLeft調整
       requestAnimationFrame(() => {
-        const playheadNewX = currentFrame * newZoom;
-        el.scrollLeft = Math.max(0, playheadNewX - viewOffset);
+        requestAnimationFrame(() => {
+          const playheadNewX = currentFrame * newZoom;
+          el.scrollLeft = Math.max(0, playheadNewX - viewOffset);
+        });
       });
     }
   };
