@@ -42,6 +42,27 @@ export function Preview({ onRenderReady }: PreviewProps) {
   const canvasWidth = Math.round(settings.width * scale);
   const canvasHeight = Math.round(settings.height * scale);
 
+  // Fit: コンテナサイズに合わせたズーム率を計算
+  const calcFitZoom = useCallback(() => {
+    const container = containerRef.current;
+    if (!container) return 50;
+    const cw = container.clientWidth - 32; // padding分
+    const ch = container.clientHeight - 32;
+    if (cw <= 0 || ch <= 0) return 50;
+    const zoomW = (cw / settings.width) * 100;
+    const zoomH = (ch / settings.height) * 100;
+    return Math.floor(Math.min(zoomW, zoomH));
+  }, [settings.width, settings.height]);
+
+  // コンポサイズ変更時に自動Fit
+  useEffect(() => {
+    // 少し遅延させてコンテナのリサイズを待つ
+    const timer = setTimeout(() => {
+      setViewportZoom(calcFitZoom());
+    }, 50);
+    return () => clearTimeout(timer);
+  }, [settings.width, settings.height, calcFitZoom, setViewportZoom]);
+
   // WebGPU対応チェック＆初期化
   useEffect(() => {
     let cancelled = false;
@@ -119,11 +140,9 @@ export function Preview({ onRenderReady }: PreviewProps) {
 
   // ズーム（ホイール）
   const handleWheel = (e: React.WheelEvent) => {
-    if (e.ctrlKey || e.metaKey) {
-      e.preventDefault();
-      const delta = e.deltaY > 0 ? -5 : 5;
-      setViewportZoom(viewportZoom + delta);
-    }
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? -5 : 5;
+    setViewportZoom(viewportZoom + delta);
   };
 
   // キャンバスをクリック → 選択解除
@@ -508,7 +527,7 @@ export function Preview({ onRenderReady }: PreviewProps) {
           <button className="btn btn-icon" onClick={() => setViewportZoom(viewportZoom + 10)}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
           </button>
-          <button className="btn btn-ghost" onClick={() => setViewportZoom(50)}
+          <button className="btn btn-ghost" onClick={() => setViewportZoom(calcFitZoom())}
             style={{ fontSize: 'var(--font-size-xxs)' }}>Fit</button>
         </div>
 
