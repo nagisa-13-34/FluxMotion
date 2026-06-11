@@ -824,6 +824,15 @@
   color: var(--color-expression) !important;
 }
 
+/* エクスプレッションON時の数値を赤く */
+.prop-value.expr-on input[type="number"],
+.prop-value.expr-on input[type="text"] {
+  color: var(--color-expression);
+}
+.prop-value.expr-on input:focus {
+  color: var(--color-text-primary);
+}
+
 .prop-expression-editor {
   padding: 2px 8px 6px 28px;
 }

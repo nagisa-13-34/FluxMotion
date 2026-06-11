@@ -1,5 +1,5 @@
 import type React from 'react';
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { useLayerStore } from '../../stores/layerStore';
 import { useTimelineStore } from '../../stores/timelineStore';
 import { useProjectStore } from '../../stores/projectStore';
@@ -50,6 +50,12 @@ export function Properties() {
 
   // エクスプレッション入力表示トグル（propName → 開閉状態）
   const [exprOpen, setExprOpen] = useState<Record<string, boolean>>({});
+
+  // レイヤー選択が変わったらエクスプレッション欄を閉じる（別レイヤーの設定が残らないように）
+  const selectedLayerId = selectedLayer?.id;
+  useEffect(() => {
+    setExprOpen({});
+  }, [selectedLayerId]);
 
   // スケールリンク（比率保持）
   const [scaleLinked, setScaleLinked] = useState(true);
@@ -549,7 +555,8 @@ export function Properties() {
   /** インラインエクスプレッション欄を描画するヘルパー */
   const renderExpressionInline = (propKey: string) => {
     const isOpen = exprOpen[propKey] || false;
-    if (!isOpen || !selectedLayer) return null;
+    const hasExpr = !!(selectedLayer?.expressions?.[propKey]);
+    if ((!isOpen && !hasExpr) || !selectedLayer) return null;
     const expr = selectedLayer.expressions?.[propKey] || '';
     return (
       <div className="prop-expression-editor" style={{ marginLeft: 28 }}>
@@ -1008,7 +1015,7 @@ export function Properties() {
                             </button>
                           )}
                         </span>
-                        <div className="prop-value">
+                        <div className={`prop-value${hasExpr0 ? ' expr-on' : ''}`}>
                           {numInput(displayArr[0], (v) => handleValueChange(prop.key, [v, displayArr[1]]), stepVal, '50%')}
                           {numInput(displayArr[1], (v) => handleValueChange(prop.key, [displayArr[0], v]), stepVal, '50%')}
                         </div>
@@ -1031,7 +1038,7 @@ export function Properties() {
                         onMouseDown={(e) => handleDragStart(e, displayNum, (v) => handleValueChange(prop.key, v), { step: prop.key === 'rotation' ? 1 : 0.5, min: prop.min, max: prop.max })}
                         title="ドラッグで値を変更"
                       >{prop.label}</span>
-                      <div className="prop-value">
+                      <div className={`prop-value${hasExprNum ? ' expr-on' : ''}`}>
                         <input type="number" value={Math.round(displayNum * 10) / 10}
                           onChange={(e) => handleValueChange(prop.key, parseFloat(e.target.value) || 0)}
                           readOnly
