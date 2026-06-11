@@ -42,14 +42,6 @@ export function Timeline() {
   const [dragLayerIndex, setDragLayerIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
-  // ナビゲータードラッグ
-  const navRef = useRef<HTMLDivElement>(null);
-  const [navDrag, setNavDrag] = useState<{
-    type: 'left' | 'right' | 'pan';
-    startX: number;
-    origScrollLeft: number;
-    origZoom: number;
-  } | null>(null);
   const [navScrollLeft, setNavScrollLeft] = useState(0);
 
   // レイヤーバー（inPoint/outPoint）ドラッグ用
@@ -718,9 +710,6 @@ export function Timeline() {
             trackContainerRef={trackContainerRef}
             totalFrames={totalFrames()}
             zoom={zoom}
-            navRef={navRef}
-            navDrag={navDrag}
-            setNavDrag={setNavDrag}
             setZoom={setZoom}
             userZoomedRef={userZoomedRef}
             calcFitZoom={calcFitZoom}
@@ -924,9 +913,6 @@ function TimelineNavigator({
   trackContainerRef,
   totalFrames,
   zoom,
-  navRef,
-  navDrag,
-  setNavDrag,
   setZoom,
   userZoomedRef,
   calcFitZoom,
@@ -936,118 +922,144 @@ function TimelineNavigator({
   trackContainerRef: React.RefObject<HTMLDivElement | null>;
   totalFrames: number;
   zoom: number;
-  navRef: React.RefObject<HTMLDivElement | null>;
-  navDrag: { type: 'left' | 'right' | 'pan'; startX: number; origScrollLeft: number; origZoom: number } | null;
-  setNavDrag: (v: typeof navDrag) => void;
   setZoom: (z: number) => void;
   userZoomedRef: React.MutableRefObject<boolean>;
   calcFitZoom: () => number;
   pendingScrollLeftRef: React.MutableRefObject<number | null>;
   navScrollLeft: number;
 }) {
-  const el = trackContainerRef.current;
-  const totalWidth = totalFrames * zoom;
-  const containerW = el?.clientWidth || 1;
+  const navRef = useRef<HTMLDivElement>(null);
+  const dragRef = useRef<{
+    type: 'left' | 'right' | 'pan';
+    startX: number;
+    origViewStart: number;
+    origViewEnd: number;
+  } | null>(null);
+  const [, setTick] = useState(0);
 
-  // ナビゲーター上のバー位置・幅を計算
-  const navWidth = navRef.current?.clientWidth || containerW;
-  const barLeft = totalWidth > 0 ? (navScrollLeft / totalWidth) * navWidth : 0;
-  const barWidth = totalWidth > 0 ? Math.max(20, (containerW / totalWidth) * navWidth) : navWidth;
+  const trackEl = trackContainerRef.current;
+  const containerW = trackEl?.clientWidth || 1;
 
-  // ナビゲータードラッグ
+  // 現在の表示範囲（フレーム単位）
+  const viewStart = zoom > 0 ? navScrollLeft / zoom : 0;
+  const viewEnd = zoom > 0 ? (navScrollLeft + containerW) / zoom : totalFrames;
+
+  // ナビゲーター上のバー位置・幅を計算（%ベース）
+  const barLeftPct = totalFrames > 0 ? (viewStart / totalFrames) * 100 : 0;
+  const barWidthPct = totalFrames > 0 ? Math.max(2, ((viewEnd - viewStart) / totalFrames) * 100) : 100;
+
+  // viewStart/viewEnd からzoom+scrollLeftを適用
+  const applyView = useCallback((start: number, end: number) => {
+    const el = trackContainerRef.current;
+    if (!el) return;
+    const clampedStart = Math.max(0, start);
+    const clampedEnd = Math.min(totalFrames, end);
+    const viewFrames = Math.max(10, clampedEnd - clampedStart);
+    const newZoom = Math.max(calcFitZoom(), el.clientWidth / viewFrames);
+    userZoomedRef.current = newZoom > calcFitZoom() + 0.01;
+    pendingScrollLeftRef.current = clampedStart * newZoom;
+    setZoom(newZoom);
+  }, [trackContainerRef, totalFrames, calcFitZoom, userZoomedRef, pendingScrollLeftRef, setZoom]);
+
+  // ドラッグハンドラ
   useEffect(() => {
-    if (!navDrag) return;
     const handleMove = (e: MouseEvent) => {
+      const drag = dragRef.current;
       const navEl = navRef.current;
-      const trackEl = trackContainerRef.current;
-      if (!navEl || !trackEl) return;
-      const nw = navEl.clientWidth;
-      const dx = e.clientX - navDrag.startX;
+      if (!drag || !navEl) return;
+      e.preventDefault();
 
-      if (navDrag.type === 'pan') {
-        const totalW = totalFrames * zoom;
-        const scrollDelta = (dx / nw) * totalW;
-        trackEl.scrollLeft = Math.max(0, navDrag.origScrollLeft + scrollDelta);
-      } else if (navDrag.type === 'right') {
-        // 右ハンドル: 表示範囲の終了を変更 → zoomを変える
-        const origViewFrames = trackEl.clientWidth / navDrag.origZoom;
-        const newViewFrames = Math.max(10, origViewFrames + (dx / nw) * totalFrames);
-        const newZoom = Math.max(calcFitZoom(), trackEl.clientWidth / newViewFrames);
-        userZoomedRef.current = true;
-        setZoom(newZoom);
-      } else if (navDrag.type === 'left') {
-        // 左ハンドル: 表示範囲の開始を変更
-        const origViewFrames = trackEl.clientWidth / navDrag.origZoom;
-        const newViewFrames = Math.max(10, origViewFrames - (dx / nw) * totalFrames);
-        const newZoom = Math.max(calcFitZoom(), trackEl.clientWidth / newViewFrames);
-        userZoomedRef.current = true;
-        // 左ハンドルはスクロール位置も調整
-        const scrollDelta = (dx / nw) * totalFrames * newZoom;
-        pendingScrollLeftRef.current = Math.max(0, navDrag.origScrollLeft + scrollDelta);
-        setZoom(newZoom);
+      const nw = navEl.clientWidth;
+      const dx = e.clientX - drag.startX;
+      const dFrames = (dx / nw) * totalFrames;
+
+      if (drag.type === 'pan') {
+        const range = drag.origViewEnd - drag.origViewStart;
+        let newStart = drag.origViewStart + dFrames;
+        newStart = Math.max(0, Math.min(totalFrames - range, newStart));
+        const el = trackContainerRef.current;
+        if (el) {
+          el.scrollLeft = newStart * zoom;
+          setTick(t => t + 1);
+        }
+      } else if (drag.type === 'left') {
+        const newStart = Math.max(0, Math.min(drag.origViewEnd - 10, drag.origViewStart + dFrames));
+        applyView(newStart, drag.origViewEnd);
+      } else if (drag.type === 'right') {
+        const newEnd = Math.min(totalFrames, Math.max(drag.origViewStart + 10, drag.origViewEnd + dFrames));
+        applyView(drag.origViewStart, newEnd);
       }
     };
-    const handleUp = () => setNavDrag(null);
+
+    const handleUp = () => {
+      dragRef.current = null;
+      setTick(t => t + 1);
+    };
+
     window.addEventListener('mousemove', handleMove);
     window.addEventListener('mouseup', handleUp);
     return () => {
       window.removeEventListener('mousemove', handleMove);
       window.removeEventListener('mouseup', handleUp);
     };
-  }, [navDrag, totalFrames, zoom, setZoom, calcFitZoom, userZoomedRef, pendingScrollLeftRef, navRef, trackContainerRef, setNavDrag]);
+  }, [totalFrames, zoom, applyView, trackContainerRef]);
 
-  const handleNavMouseDown = (e: React.MouseEvent, type: 'left' | 'right' | 'pan') => {
+  const startDrag = (e: React.MouseEvent, type: 'left' | 'right' | 'pan') => {
     e.preventDefault();
     e.stopPropagation();
-    setNavDrag({
+    dragRef.current = {
       type,
       startX: e.clientX,
-      origScrollLeft: el?.scrollLeft || 0,
-      origZoom: zoom,
-    });
+      origViewStart: viewStart,
+      origViewEnd: viewEnd,
+    };
   };
 
   // ダブルクリックでフィットリセット
-  const handleNavDoubleClick = () => {
+  const handleDoubleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
     userZoomedRef.current = false;
     setZoom(calcFitZoom());
+    const el = trackContainerRef.current;
     if (el) el.scrollLeft = 0;
   };
 
-  // ナビゲーターの空白クリックでその位置にジャンプ
-  const handleNavBgClick = (e: React.MouseEvent) => {
+  // 背景クリックでジャンプ
+  const handleBgMouseDown = (e: React.MouseEvent) => {
     const navEl = navRef.current;
-    const trackEl = trackContainerRef.current;
-    if (!navEl || !trackEl) return;
+    const el = trackContainerRef.current;
+    if (!navEl || !el) return;
     const rect = navEl.getBoundingClientRect();
-    const clickX = e.clientX - rect.left;
-    const nw = navEl.clientWidth;
-    const totalW = totalFrames * zoom;
-    const targetScrollLeft = (clickX / nw) * totalW - trackEl.clientWidth / 2;
-    trackEl.scrollLeft = Math.max(0, targetScrollLeft);
+    const clickPct = (e.clientX - rect.left) / rect.width;
+    const clickFrame = clickPct * totalFrames;
+    const viewFrames = viewEnd - viewStart;
+    const newStart = Math.max(0, Math.min(totalFrames - viewFrames, clickFrame - viewFrames / 2));
+    el.scrollLeft = newStart * zoom;
+    setTick(t => t + 1);
   };
 
   return (
     <div
       ref={navRef}
       className="timeline-navigator"
-      onMouseDown={handleNavBgClick}
-      onDoubleClick={handleNavDoubleClick}
+      onMouseDown={handleBgMouseDown}
+      onDoubleClick={handleDoubleClick}
     >
       <div
         className="timeline-navigator-bar"
-        style={{ left: barLeft, width: barWidth }}
-        onMouseDown={(e) => handleNavMouseDown(e, 'pan')}
+        style={{ left: `${barLeftPct}%`, width: `${barWidthPct}%` }}
+        onMouseDown={(e) => startDrag(e, 'pan')}
       >
         <div
           className="timeline-navigator-handle timeline-navigator-handle-left"
-          onMouseDown={(e) => handleNavMouseDown(e, 'left')}
+          onMouseDown={(e) => startDrag(e, 'left')}
         />
         <div
           className="timeline-navigator-handle timeline-navigator-handle-right"
-          onMouseDown={(e) => handleNavMouseDown(e, 'right')}
+          onMouseDown={(e) => startDrag(e, 'right')}
         />
       </div>
     </div>
   );
 }
+
