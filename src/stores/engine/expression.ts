@@ -75,22 +75,22 @@ export function evaluateExpression(
 
 /** エクスプレッションをコンパイル（キャッシュ付き） */
 function compileExpression(expr: string): Function {
-  if (compiledCache.has(expr)) {
-    return compiledCache.get(expr)!;
+  // セミコロン末尾を削除（return付加のため）
+  const trimmed = expr.trim().replace(/;$/, '');
+
+  if (compiledCache.has(trimmed)) {
+    return compiledCache.get(trimmed)!;
   }
 
   // サンドボックス変数をパラメータとして受け取る関数を生成
   const fn = new Function(
     '$',
     `with ($) {
-      return (function() {
-        "use strict";
-        ${expr.includes('return') ? expr : `return (${expr})`}
-      })();
+      ${trimmed.includes('return') ? trimmed : `return (${trimmed})`}
     }`,
   );
 
-  compiledCache.set(expr, fn);
+  compiledCache.set(trimmed, fn);
   return fn;
 }
 

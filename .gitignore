@@ -29,3 +29,6 @@ src-tauri/gen/schemas/
 
 # Docs (private)
 docs/NEXT_STEPS.md
+# agents
+.agents/Reference/
+.agents/skills/
