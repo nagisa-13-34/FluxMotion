@@ -548,3 +548,52 @@
   padding: 0 3px;
   line-height: 1;
 }
+
+/* ---- Timeline Navigator (Zoom Slider) ---- */
+.timeline-navigator {
+  height: 14px;
+  background: var(--color-bg-darker);
+  border-top: 1px solid var(--color-border);
+  position: relative;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.timeline-navigator-bar {
+  position: absolute;
+  top: 2px;
+  height: 10px;
+  background: rgba(100, 160, 255, 0.25);
+  border: 1px solid rgba(100, 160, 255, 0.6);
+  border-radius: 3px;
+  cursor: grab;
+  transition: background 0.1s;
+}
+.timeline-navigator-bar:hover {
+  background: rgba(100, 160, 255, 0.35);
+}
+.timeline-navigator-bar:active {
+  cursor: grabbing;
+  background: rgba(100, 160, 255, 0.4);
+}
+
+.timeline-navigator-handle {
+  position: absolute;
+  top: -1px;
+  width: 6px;
+  height: 12px;
+  background: rgba(100, 160, 255, 0.9);
+  border-radius: 2px;
+  cursor: ew-resize;
+  z-index: 2;
+  transition: background 0.1s;
+}
+.timeline-navigator-handle:hover {
+  background: rgba(140, 190, 255, 1);
+}
+.timeline-navigator-handle-left {
+  left: -3px;
+}
+.timeline-navigator-handle-right {
+  right: -3px;
+}
