@@ -119,14 +119,18 @@ export function Timeline() {
     const el = trackContainerRef.current;
     if (!el) return;
 
-    // 初期化時はフィット
+    // 初期化時はフィット + scrollLeftリセット
     if (!userZoomedRef.current) {
       setZoom(calcFitZoom());
+      el.scrollLeft = 0;
+      setNavScrollLeft(0);
     }
 
     const ro = new ResizeObserver(() => {
       if (!userZoomedRef.current) {
         setZoom(calcFitZoom());
+        el.scrollLeft = 0;
+        setNavScrollLeft(0);
       }
     });
     ro.observe(el);
@@ -286,12 +290,15 @@ export function Timeline() {
 
   // DOMコミット直後に同期的にscrollLeftを適用（ちらつき防止）
   useLayoutEffect(() => {
+    const el = trackContainerRef.current;
+    if (!el) return;
     if (pendingScrollLeftRef.current !== null) {
-      const el = trackContainerRef.current;
-      if (el) {
-        el.scrollLeft = pendingScrollLeftRef.current;
-      }
+      el.scrollLeft = pendingScrollLeftRef.current;
+      setNavScrollLeft(pendingScrollLeftRef.current);
       pendingScrollLeftRef.current = null;
+    } else if (Math.abs(el.scrollLeft - navScrollLeft) > 1) {
+      // ブラウザの自動クランプを検出して同期
+      setNavScrollLeft(el.scrollLeft);
     }
   });
 
@@ -314,6 +321,7 @@ export function Timeline() {
       const viewOffset = playheadOldX - el.scrollLeft;
       const playheadNewX = currentFrame * newZoom;
       pendingScrollLeftRef.current = Math.max(0, playheadNewX - viewOffset);
+      setNavScrollLeft(pendingScrollLeftRef.current);
 
       setZoom(newZoom);
     }
@@ -564,6 +572,21 @@ export function Timeline() {
         </div>
       </div>
 
+      {/* ナビゲーター（ズームスライダー） - スクロールコンテナの外 */}
+      <div className="timeline-navigator-row">
+        <div className="timeline-navigator-spacer" />
+        <TimelineNavigator
+          trackContainerRef={trackContainerRef}
+          totalFrames={totalFrames()}
+          zoom={zoom}
+          setZoom={setZoom}
+          userZoomedRef={userZoomedRef}
+          calcFitZoom={calcFitZoom}
+          pendingScrollLeftRef={pendingScrollLeftRef}
+          navScrollLeft={navScrollLeft}
+        />
+      </div>
+
       <div className="timeline-body">
         {/* 左側: レイヤーリスト */}
         <div className="timeline-layers">
@@ -705,17 +728,6 @@ export function Timeline() {
 
         {/* 右側: トラック */}
         <div className="timeline-tracks" ref={trackContainerRef} onScroll={() => setNavScrollLeft(trackContainerRef.current?.scrollLeft || 0)}>
-          {/* ナビゲーター（ズームスライダー） */}
-          <TimelineNavigator
-            trackContainerRef={trackContainerRef}
-            totalFrames={totalFrames()}
-            zoom={zoom}
-            setZoom={setZoom}
-            userZoomedRef={userZoomedRef}
-            calcFitZoom={calcFitZoom}
-            pendingScrollLeftRef={pendingScrollLeftRef}
-            navScrollLeft={navScrollLeft}
-          />
           <div
             ref={rulerRef}
             className="timeline-ruler"

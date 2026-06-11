@@ -551,12 +551,27 @@
 
 /* ---- Timeline Navigator (Zoom Slider) ---- */
 .timeline-navigator {
+  flex: 1;
   height: 14px;
   background: var(--color-bg-darker);
-  border-bottom: 1px solid var(--color-border);
   position: relative;
   cursor: pointer;
   flex-shrink: 0;
+  min-width: 0;
+}
+
+/* ナビゲーター行（スクロールコンテナの外） */
+.timeline-navigator-row {
+  display: flex;
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+.timeline-navigator-spacer {
+  width: 180px;
+  min-width: 140px;
+  flex-shrink: 0;
+  background: var(--color-bg-darker);
+  border-right: 1px solid var(--color-border);
 }
 
 .timeline-navigator-bar {
