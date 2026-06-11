@@ -676,7 +676,7 @@ export function EasingEditor() {
   // ── キーボード（Space でパンモード） ──
   useEffect(() => {
     const kd = (e: KeyboardEvent) => {
-      if ((e.target as HTMLElement).tagName === 'INPUT') return;
+      if ((e.target as HTMLElement).tagName === 'INPUT' || (e.target as HTMLElement).tagName === 'TEXTAREA') return;
       if (e.code === 'Space' && !isSpaceDown.current) { e.preventDefault(); isSpaceDown.current = true; }
       if (e.key === '0') { e.preventDefault(); targetView.current = computeFitView(anchorsRef.current, canvasAspect()); startAnim(); }
     };
