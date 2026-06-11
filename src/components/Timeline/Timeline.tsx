@@ -85,11 +85,17 @@ export function Timeline() {
     [zoom],
   );
 
-  // ピクセル→フレーム変換
+  // ピクセル→フレーム変換（コンテナ内クリック位置 + スクロールオフセット）
   const xToFrame = useCallback(
-    (x: number) => Math.round(x / zoom),
+    (x: number) => {
+      const scrollLeft = trackContainerRef.current?.scrollLeft || 0;
+      return Math.round((x + scrollLeft) / zoom);
+    },
     [zoom],
   );
+
+  // コンポ全長のピクセル幅
+  const totalContentWidth = totalFrames() * zoom;
 
   // トラックコンテナ ref
   const trackContainerRef = useRef<HTMLDivElement>(null);
@@ -679,6 +685,7 @@ export function Timeline() {
           <div
             ref={rulerRef}
             className="timeline-ruler"
+            style={{ minWidth: totalContentWidth }}
             onMouseDown={handleRulerMouseDown}
           >
             {renderRuler()}
@@ -689,7 +696,7 @@ export function Timeline() {
             />
           </div>
 
-          <div ref={tracksRef} className="timeline-tracks-scroll" onScroll={handleTracksScroll}>
+          <div ref={tracksRef} className="timeline-tracks-scroll" style={{ minWidth: totalContentWidth }} onScroll={handleTracksScroll}>
             {layers.map((layer) => {
               const clipLeft = frameToX(layer.inPoint);
               const clipWidth = (layer.outPoint - layer.inPoint) * zoom;
