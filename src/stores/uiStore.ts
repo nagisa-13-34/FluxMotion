@@ -47,7 +47,7 @@ const DEFAULT_LAYOUT: IJsonModel = {
           name: 'ツール',
           component: PANEL_IDS.TOOLBAR,
           enableClose: false,
-          enableDrag: true,
+          enableDrag: false,
         },
       ],
     },

@@ -3,7 +3,6 @@
 
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useLayerStore } from '../../stores/layerStore';
-import { DraggablePanelHeader } from '../common/DraggablePanelHeader';
 import { EASING_PRESETS } from '../../types/keyframe';
 
 type B4 = [number, number, number, number];
@@ -1160,19 +1159,6 @@ export function EasingEditor() {
 
   return (
     <div className="easing-editor" style={{ display: 'flex', flexDirection: 'column', height: '100%' }} onClick={() => { setContextMenu(null); }}>
-      <DraggablePanelHeader panelId="easing" className="" >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)', flex: 1, justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
-            <svg className="panel-header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M2 20 C 8 20, 8 4, 22 4" />
-            </svg>
-            イージング
-          </div>
-          <button onClick={() => setShowSettings(true)} style={{ ...iconBtnS, color: '#666' }} title="設定">
-            <MIcon name="settings" size={14} />
-          </button>
-        </div>
-      </DraggablePanelHeader>
       <div className="panel-content" style={{ padding: 0, display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
 
         {/* Bezier / Bounce / Elastic タブ */}
