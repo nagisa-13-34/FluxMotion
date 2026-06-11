@@ -57,13 +57,19 @@
   color: var(--color-text-primary) !important;
 }
 
-/* タブセットのタブストリップ - 非表示（パネル内ヘッダーで操作） */
+/* タブセットのタブストリップ - 視覚的に非表示（DOM維持でD&D可能） */
 .flexlayout__tabset_tabbar_outer {
-  display: none !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  border: none !important;
+  padding: 0 !important;
 }
 
 .flexlayout__tabset_tabbar_inner {
-  display: none !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
 }
 
 /* スプリッター（完全透明・全ステート） */

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, createContext } from 'react';
 import { Layout, Actions } from 'flexlayout-react';
 import type { TabNode, TabSetNode, BorderNode, Model, Action } from 'flexlayout-react';
 import 'flexlayout-react/style/dark.css';
@@ -19,7 +19,11 @@ import { AnimationLoop } from './stores/engine/animation';
 import { EASING_PRESETS } from './types/keyframe';
 import { downloadProject, openProjectPicker } from './stores/engine/projectIO';
 
+/** Layout ref を全パネルからアクセスするためのContext */
+export const LayoutContext = createContext<React.RefObject<Layout | null>>({ current: null });
+
 export default function App() {
+  const layoutRef = useRef<Layout>(null);
   const { isPlaying, togglePlay } = useTimelineStore();
   const settings = useProjectStore((s) => s.settings);
   const totalFrames = useProjectStore((s) => s.totalFrames);
@@ -297,13 +301,16 @@ export default function App() {
     <div className="app-shell" onClick={() => hideContextMenu()}>
       <MenuBar />
       <div className="dock-container">
-        <Layout
-          model={flexModel}
-          factory={factory}
-          onContextMenu={onContextMenu}
-          onModelChange={onModelChange}
-          realtimeResize={true}
-        />
+        <LayoutContext.Provider value={layoutRef}>
+          <Layout
+            ref={layoutRef}
+            model={flexModel}
+            factory={factory}
+            onContextMenu={onContextMenu}
+            onModelChange={onModelChange}
+            realtimeResize={true}
+          />
+        </LayoutContext.Provider>
       </div>
       <ContextMenu />
     </div>
