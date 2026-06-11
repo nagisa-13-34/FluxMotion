@@ -87,8 +87,8 @@ export function Toolbar() {
 
   return (
     <div className="toolbar">
-      <DraggablePanelHeader panelId="toolbar">
-        ツール
+      <DraggablePanelHeader panelId="toolbar" className="toolbar-drag-handle">
+        <span className="drag-grip">⋮⋮</span>
       </DraggablePanelHeader>
       {TOOLS.map((tool, idx) => {
         if (tool === 'separator') {
