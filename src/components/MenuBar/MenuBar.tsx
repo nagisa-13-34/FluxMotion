@@ -1,9 +1,11 @@
+import { useState } from 'react';
 import { useProjectStore } from '../../stores/projectStore';
 import { useTimelineStore } from '../../stores/timelineStore';
 import { useUIStore } from '../../stores/uiStore';
 import { useLayerStore } from '../../stores/layerStore';
 import { useHistoryStore } from '../../stores/historyStore';
 import { downloadProject, openProjectPicker } from '../../stores/engine/projectIO';
+import { RESOLUTION_PRESETS, FPS_PRESETS } from '../../types/project';
 
 const MENUS = ['ファイル', '編集', 'コンポジション', 'レイヤー', 'エフェクト', '表示', 'ヘルプ'];
 
@@ -13,7 +15,38 @@ export function MenuBar() {
   const activeMenu = useUIStore((s) => s.activeMenu);
   const setActiveMenu = useUIStore((s) => s.setActiveMenu);
   const addLayer = useLayerStore((s) => s.addLayer);
+  const updateSettings = useProjectStore((s) => s.updateSettings);
   const resetProject = useProjectStore((s) => s.resetProject);
+
+  // コンポジション設定ダイアログ
+  const showCompDialog = useUIStore((s) => s.showCompSettings);
+  const setShowCompDialog = useUIStore((s) => s.setShowCompSettings);
+  const [compForm, setCompForm] = useState({
+    width: settings.width,
+    height: settings.height,
+    fps: settings.fps,
+    duration: settings.duration,
+    backgroundColor: settings.backgroundColor,
+    name: settings.name,
+  });
+
+  const openCompDialog = () => {
+    setCompForm({
+      width: settings.width,
+      height: settings.height,
+      fps: settings.fps,
+      duration: settings.duration,
+      backgroundColor: settings.backgroundColor,
+      name: settings.name,
+    });
+    setShowCompDialog(true);
+    setActiveMenu(null);
+  };
+
+  const applyCompSettings = () => {
+    updateSettings(compForm);
+    setShowCompDialog(false);
+  };
 
   const formatTime = (frame: number) => {
     const totalSeconds = frame / settings.fps;
@@ -155,9 +188,22 @@ export function MenuBar() {
                     やり直し <span className="shortcut">Ctrl+Shift+Z</span>
                   </div>
                   <div className="dropdown-separator" />
-                  <div className="dropdown-item disabled">カット <span className="shortcut">Ctrl+X</span></div>
-                  <div className="dropdown-item disabled">コピー <span className="shortcut">Ctrl+C</span></div>
-                  <div className="dropdown-item disabled">ペースト <span className="shortcut">Ctrl+V</span></div>
+                  <div className="dropdown-item" onClick={() => { useLayerStore.getState().cutLayers(); setActiveMenu(null); }}>
+                    カット <span className="shortcut">Ctrl+X</span>
+                  </div>
+                  <div className="dropdown-item" onClick={() => { useLayerStore.getState().copyLayers(); setActiveMenu(null); }}>
+                    コピー <span className="shortcut">Ctrl+C</span>
+                  </div>
+                  <div className="dropdown-item" onClick={() => { useLayerStore.getState().pasteLayers(); setActiveMenu(null); }}>
+                    ペースト <span className="shortcut">Ctrl+V</span>
+                  </div>
+                  <div className="dropdown-separator" />
+                  <div className="dropdown-item" onClick={() => { useLayerStore.getState().duplicateSelected(); setActiveMenu(null); }}>
+                    複製 <span className="shortcut">Ctrl+D</span>
+                  </div>
+                  <div className="dropdown-item" onClick={() => { useLayerStore.getState().deleteSelected(); setActiveMenu(null); }}>
+                    削除 <span className="shortcut">Del</span>
+                  </div>
                 </>
               )}
               {menu === '表示' && (
@@ -210,7 +256,14 @@ export function MenuBar() {
                   </div>
                 </>
               )}
-              {(menu !== 'ファイル' && menu !== 'レイヤー' && menu !== '編集' && menu !== '表示') && (
+              {menu === 'コンポジション' && (
+                <>
+                  <div className="dropdown-item" onClick={openCompDialog}>
+                    コンポジション設定 <span className="shortcut">Ctrl+K</span>
+                  </div>
+                </>
+              )}
+              {(menu !== 'ファイル' && menu !== 'レイヤー' && menu !== '編集' && menu !== '表示' && menu !== 'コンポジション') && (
                 <div className="dropdown-item disabled" style={{ color: 'var(--color-text-dim)' }}>
                   Coming soon...
                 </div>
@@ -227,6 +280,86 @@ export function MenuBar() {
         <span>{settings.fps}fps</span>
         <span>{formatTime(currentFrame)}</span>
       </div>
+      {/* コンポジション設定ダイアログ */}
+      {showCompDialog && (
+        <div className="comp-dialog-overlay" onClick={() => setShowCompDialog(false)}>
+          <div className="comp-dialog" onClick={(e) => e.stopPropagation()}>
+            <div className="comp-dialog-header">
+              <span>コンポジション設定</span>
+              <button className="comp-dialog-close" onClick={() => setShowCompDialog(false)}>×</button>
+            </div>
+            <div className="comp-dialog-body">
+              <div className="comp-field">
+                <label>プロジェクト名</label>
+                <input type="text" value={compForm.name}
+                  onChange={(e) => setCompForm({ ...compForm, name: e.target.value })} />
+              </div>
+              <div className="comp-field">
+                <label>プリセット</label>
+                <select onChange={(e) => {
+                  const preset = RESOLUTION_PRESETS[e.target.value as keyof typeof RESOLUTION_PRESETS];
+                  if (preset) setCompForm({ ...compForm, width: preset.width, height: preset.height });
+                }} value={
+                  Object.entries(RESOLUTION_PRESETS).find(
+                    ([, v]) => v.width === compForm.width && v.height === compForm.height
+                  )?.[0] || ''
+                }>
+                  <option value="">カスタム</option>
+                  {Object.entries(RESOLUTION_PRESETS).map(([name, v]) => (
+                    <option key={name} value={name}>{name} ({v.width}×{v.height})</option>
+                  ))}
+                </select>
+              </div>
+              <div className="comp-field-row">
+                <div className="comp-field">
+                  <label>幅</label>
+                  <input type="number" value={compForm.width} min={1}
+                    onChange={(e) => setCompForm({ ...compForm, width: parseInt(e.target.value) || 1 })} />
+                </div>
+                <span className="comp-times">×</span>
+                <div className="comp-field">
+                  <label>高さ</label>
+                  <input type="number" value={compForm.height} min={1}
+                    onChange={(e) => setCompForm({ ...compForm, height: parseInt(e.target.value) || 1 })} />
+                </div>
+              </div>
+              <div className="comp-field-row">
+                <div className="comp-field">
+                  <label>FPS</label>
+                  <select value={FPS_PRESETS.includes(compForm.fps as any) ? compForm.fps : 'custom'}
+                    onChange={(e) => {
+                      if (e.target.value !== 'custom') setCompForm({ ...compForm, fps: parseFloat(e.target.value) });
+                    }}>
+                    {FPS_PRESETS.map((f) => (
+                      <option key={f} value={f}>{f}</option>
+                    ))}
+                    {!FPS_PRESETS.includes(compForm.fps as any) && (
+                      <option value="custom">{compForm.fps} (カスタム)</option>
+                    )}
+                  </select>
+                </div>
+                <div className="comp-field">
+                  <label>デュレーション(秒)</label>
+                  <input type="number" value={compForm.duration} min={1} step={1}
+                    onChange={(e) => setCompForm({ ...compForm, duration: parseFloat(e.target.value) || 1 })} />
+                </div>
+              </div>
+              <div className="comp-field">
+                <label>背景色</label>
+                <div className="comp-color-row">
+                  <input type="color" value={compForm.backgroundColor}
+                    onChange={(e) => setCompForm({ ...compForm, backgroundColor: e.target.value })} />
+                  <span>{compForm.backgroundColor}</span>
+                </div>
+              </div>
+            </div>
+            <div className="comp-dialog-footer">
+              <button className="comp-btn-cancel" onClick={() => setShowCompDialog(false)}>キャンセル</button>
+              <button className="comp-btn-ok" onClick={applyCompSettings}>OK</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

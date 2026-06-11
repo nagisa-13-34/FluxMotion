@@ -167,6 +167,10 @@ interface UIState {
   setShowOnlyKeyframed: (v: boolean) => void;
   toggleExpandLayer: (id: string) => void;
 
+  /** コンポジション設定ダイアログ */
+  showCompSettings: boolean;
+  setShowCompSettings: (v: boolean) => void;
+
   /** FlexLayout Model を取得 */
   getFlexModel: () => Model;
   /** レイアウトをデフォルトにリセット */
@@ -182,6 +186,7 @@ export const useUIStore = create<UIState>((set) => ({
   viewportZoom: 50,
   showOnlyKeyframed: false,
   expandedLayerIds: [],
+  showCompSettings: false,
 
   setTool: (tool) => set({ activeTool: tool }),
   setActiveMenu: (menu) => set({ activeMenu: menu }),
@@ -202,6 +207,8 @@ export const useUIStore = create<UIState>((set) => ({
         ? s.expandedLayerIds.filter((x) => x !== id)
         : [...s.expandedLayerIds, id],
     })),
+
+  setShowCompSettings: (v) => set({ showCompSettings: v }),
 
   getFlexModel: () => flexModel,
 

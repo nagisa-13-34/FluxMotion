@@ -132,6 +132,10 @@ export default function App() {
             }
             renderCallbackRef.current?.();
             break;
+          case 'k':
+            e.preventDefault();
+            useUIStore.getState().setShowCompSettings(true);
+            break;
         }
         return;
       }
