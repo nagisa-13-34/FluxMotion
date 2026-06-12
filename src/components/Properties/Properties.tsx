@@ -652,6 +652,16 @@ export function Properties() {
               if (!(e.currentTarget as HTMLInputElement).readOnly) return;
               handleDragStart(e, display, onChange, opts);
             }}
+            onFocus={(e) => {
+              // Tabキーでフォーカスされた場合は自動で編集モードに入る
+              const el = e.currentTarget as HTMLInputElement;
+              if (el.readOnly) {
+                requestAnimationFrame(() => {
+                  el.readOnly = false;
+                  el.select();
+                });
+              }
+            }}
             onDoubleClick={(e) => {
               const el = e.currentTarget as HTMLInputElement;
               el.readOnly = false;
@@ -775,6 +785,7 @@ export function Properties() {
                       onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
                       readOnly
                       onMouseDown={(e) => { if (!e.currentTarget.readOnly) return; handleDragStart(e, val, onChange, { step }); }}
+                      onFocus={(e) => { const el = e.currentTarget; if (el.readOnly) requestAnimationFrame(() => { el.readOnly = false; el.select(); }); }}
                       onDoubleClick={(e) => { e.currentTarget.readOnly = false; e.currentTarget.focus(); e.currentTarget.select(); }}
                       onBlur={(e) => { e.currentTarget.readOnly = true; }}
                       onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
@@ -1025,6 +1036,7 @@ export function Properties() {
                           onChange={(e) => handleValueChange(prop.key, parseFloat(e.target.value) || 0)}
                           readOnly
                           onMouseDown={(e) => { if (!e.currentTarget.readOnly) return; handleDragStart(e, displayNum, (v) => handleValueChange(prop.key, v), { step: prop.key === 'rotation' ? 1 : 0.5, min: prop.min, max: prop.max }); }}
+                          onFocus={(e) => { const el = e.currentTarget; if (el.readOnly) requestAnimationFrame(() => { el.readOnly = false; el.select(); }); }}
                           onDoubleClick={(e) => { e.currentTarget.readOnly = false; e.currentTarget.focus(); e.currentTarget.select(); }}
                           onBlur={(e) => { e.currentTarget.readOnly = true; }}
                           onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}

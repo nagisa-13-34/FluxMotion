@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useUIStore } from '../../stores/uiStore';
 
 export function ContextMenu() {
@@ -47,24 +47,27 @@ export function ContextMenu() {
       onClick={(e) => e.stopPropagation()}
     >
       {items.map((item, idx) => {
-        if (item.separator) {
+        // separatorのみ（labelなし）の場合
+        if (item.separator && !item.label) {
           return <div key={idx} className="dropdown-separator" />;
         }
         return (
-          <div
-            key={idx}
-            className={`dropdown-item${item.disabled ? ' disabled' : ''}`}
-            onClick={() => {
-              if (!item.disabled) {
-                item.action();
-                hideContextMenu();
-              }
-            }}
-            style={item.disabled ? { opacity: 0.4, cursor: 'default' } : undefined}
-          >
-            {item.label}
-            {item.shortcut && <span className="shortcut">{item.shortcut}</span>}
-          </div>
+          <React.Fragment key={idx}>
+            <div
+              className={`dropdown-item${item.disabled ? ' disabled' : ''}`}
+              onClick={() => {
+                if (!item.disabled) {
+                  item.action();
+                  hideContextMenu();
+                }
+              }}
+              style={item.disabled ? { opacity: 0.4, cursor: 'default' } : undefined}
+            >
+              {item.label}
+              {item.shortcut && <span className="shortcut">{item.shortcut}</span>}
+            </div>
+            {item.separator && <div className="dropdown-separator" />}
+          </React.Fragment>
         );
       })}
     </div>

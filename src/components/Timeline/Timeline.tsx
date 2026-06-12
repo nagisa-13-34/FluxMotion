@@ -20,6 +20,7 @@ export function Timeline() {
   const expandedLayerIds = useUIStore((s) => s.expandedLayerIds);
   const toggleExpandLayer = useUIStore((s) => s.toggleExpandLayer);
   const showOnlyKeyframed = useUIStore((s) => s.showOnlyKeyframed);
+  const showContextMenu = useUIStore((s) => s.showContextMenu);
 
   const currentFrame = useTimelineStore((s) => s.currentFrame);
   const setCurrentFrame = useTimelineStore((s) => s.setCurrentFrame);
@@ -684,6 +685,20 @@ export function Timeline() {
               <div
                 className={`layer-row${selectedLayerIds.includes(layer.id) ? ' selected' : ''}${dragOverIndex === idx ? ' drag-over' : ''}${dragLayerIndex === idx ? ' dragging' : ''}${layer.parentId ? ' has-parent' : ''}`}
                 onClick={(e) => selectLayer(layer.id, e.ctrlKey || e.metaKey)}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (!selectedLayerIds.includes(layer.id)) selectLayer(layer.id);
+                  const store = useLayerStore.getState();
+                  const tl = useTimelineStore.getState();
+                  showContextMenu(e.clientX, e.clientY, [
+                    { label: '複製', shortcut: 'Ctrl+D', action: () => { store.saveSnapshot(); store.duplicateLayer(layer.id); } },
+                    { label: '削除', shortcut: 'Delete', action: () => { store.saveSnapshot(); store.removeLayer(layer.id); }, separator: true },
+                    { label: '分割', shortcut: 'Ctrl+Shift+D', action: () => { store.splitLayer(tl.currentFrame); }, separator: true },
+                    { label: layer.solo ? 'ソロ解除' : 'ソロ', action: () => store.toggleSolo(layer.id) },
+                    { label: layer.locked ? 'ロック解除' : 'ロック', action: () => store.toggleLock(layer.id) },
+                  ]);
+                }}
               >
                 <div
                   className="layer-color-tag"
