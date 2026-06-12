@@ -1,6 +1,6 @@
 import { useEffect, useRef, useCallback, createContext } from 'react';
 import { Layout, Actions } from 'flexlayout-react';
-import type { TabNode, TabSetNode, BorderNode, Model, Action, ILayoutApi } from 'flexlayout-react';
+import type { TabNode, TabSetNode, BorderNode, Model, ILayoutApi } from 'flexlayout-react';
 import 'flexlayout-react/style/dark.css';
 
 import { MenuBar } from './components/MenuBar/MenuBar';
@@ -331,7 +331,7 @@ export default function App() {
   }, [flexModel]);
 
   /** モデル変更後に空タブセットを自動削除 */
-  const onModelChange = useCallback((model: Model, _action: Action) => {
+  const onModelChange = useCallback((model: Model) => {
     // 全アクション後に空タブセット掃除（枠が残らないように）
     requestAnimationFrame(() => {
       const emptyTabsets: string[] = [];

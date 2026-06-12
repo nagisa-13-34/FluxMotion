@@ -1,7 +1,7 @@
 // EasingEditor.tsx - Ref-based viewport (no re-render on pan/zoom/drag)
 // NGS_LyricMotion_CEP CurveEditor.tsx 参考
 
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { useLayerStore } from '../../stores/layerStore';
 import { EASING_PRESETS } from '../../types/keyframe';
 
@@ -214,7 +214,8 @@ export function EasingEditor() {
   // ── State (UIトリガー用のみ) ──
   const [curve, setCurve] = useState<B4>([0.42, 0, 0.58, 1]);
   const [multiPoints, setMultiPoints] = useState<Pt[] | null>(null);
-  const [bezierCode, setBezierCode] = useState('');
+  /** コード入力中の一時的な値（編集中のみ使用） */
+  const [codeInputValue, setCodeInputValue] = useState<string | null>(null);
   const [copiedRecently, setCopiedRecently] = useState(false);
   const [showValues, setShowValues] = useState(true);
   const [showCode, setShowCode] = useState(true);
@@ -267,6 +268,9 @@ export function EasingEditor() {
   const bcHandleDrag = useRef<'h' | 'c' | null>(null);
   const bcHandleHov = useRef<'h' | 'c' | null>(null);
   const selRef = useRef(-1);
+  /** draw/startAnimのref（宣言順序の問題を回避） */
+  const drawRef = useRef<(() => void) | null>(null);
+  const startAnimRef = useRef<(() => void) | null>(null);
   const canvasSz = useRef({ w: 300, h: 200 });
   /** キャンバスのアスペクト比 (正方形グリッド用) */
   const canvasAspect = () => {
@@ -299,9 +303,9 @@ export function EasingEditor() {
       }
       const margin = 0.1;
       targetView.current = { minX: -0.1, maxX: 1.1, minY: minY - margin, maxY: maxY + margin };
-      startAnim();
+      startAnimRef.current?.();
     }
-    draw();
+    drawRef.current?.();
   }, [bounceHeight, bounceCount, bounceDir]);
 
   useEffect(() => {
@@ -317,9 +321,9 @@ export function EasingEditor() {
       }
       const margin = 0.1;
       targetView.current = { minX: -0.1, maxX: 1.1, minY: minY - margin, maxY: maxY + margin };
-      startAnim();
+      startAnimRef.current?.();
     }
-    draw();
+    drawRef.current?.();
   }, [elasticAmp, elasticPeriod, elasticDir]);
 
   // ── アンカー生成 ──
@@ -341,9 +345,10 @@ export function EasingEditor() {
   }, []);
 
   // カーブ変更 → コード表示更新のみ（ビューポート更新は下のuseEffectで）
-  useEffect(() => {
-    setBezierCode(`cubic-bezier(${curve[0].toFixed(2)}, ${curve[1].toFixed(2)}, ${curve[2].toFixed(2)}, ${curve[3].toFixed(2)})`);
-  }, [curve]);
+  const bezierCode = useMemo(
+    () => `cubic-bezier(${curve[0].toFixed(2)}, ${curve[1].toFixed(2)}, ${curve[2].toFixed(2)}, ${curve[3].toFixed(2)})`,
+    [curve],
+  );
 
   // ── 座標変換 (Ref ベース) ──
   const toCanvas = useCallback((pt: Pt, w: number, h: number): Pt => {
@@ -581,6 +586,10 @@ export function EasingEditor() {
   const startAnim = useCallback(() => {
     if (!animId.current) animId.current = requestAnimationFrame(animate);
   }, [animate]);
+
+  // draw/startAnimをrefに保存（宣言順序問題の解決）
+  useEffect(() => { drawRef.current = draw; }, [draw]);
+  useEffect(() => { startAnimRef.current = startAnim; }, [startAnim]);
 
   useEffect(() => { return () => { if (animId.current) cancelAnimationFrame(animId.current); }; }, []);
 
@@ -953,7 +962,8 @@ export function EasingEditor() {
 
   // ── コード ──
   const handleCodeSubmit = () => {
-    const m = bezierCode.match(/cubic-bezier\(\s*([\d.-]+),\s*([\d.-]+),\s*([\d.-]+),\s*([\d.-]+)\s*\)/);
+    const code = codeInputValue ?? bezierCode;
+    const m = code.match(/cubic-bezier\(\s*([\d.-]+),\s*([\d.-]+),\s*([\d.-]+),\s*([\d.-]+)\s*\)/);
     if (m) { const v = m.slice(1, 5).map(Number) as B4; if (v.every(n => !isNaN(n))) { setCurve(v); setMultiPoints(null); } }
   };
   const handleCopy = () => { navigator.clipboard.writeText(bezierCode); setCopiedRecently(true); setTimeout(() => setCopiedRecently(false), 1500); };
@@ -1242,9 +1252,9 @@ export function EasingEditor() {
         {/* コード */}
         {showCode && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderTop: '1px solid var(--color-border)' }}>
-            <input type="text" value={bezierCode}
-              onChange={(e) => setBezierCode(e.target.value)}
-              onBlur={handleCodeSubmit}
+            <input type="text" value={codeInputValue ?? bezierCode}
+              onChange={(e) => setCodeInputValue(e.target.value)}
+              onBlur={() => { handleCodeSubmit(); setCodeInputValue(null); }}
               onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
               style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: 'var(--color-text-secondary)', fontFamily: 'var(--font-mono)', fontSize: 9, textAlign: 'center' }}
             />

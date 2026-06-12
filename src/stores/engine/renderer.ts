@@ -541,12 +541,12 @@ export class Renderer {
   /** 矩形描画 */
   private renderRectangle(ctx: CanvasRenderingContext2D, w: number, h: number, cornerRadius: number, hasStroke: boolean) {
     if (cornerRadius > 0) {
-      this.roundRect(ctx, -w / 2, -h / 2, w, h, cornerRadius);
+      this.roundRect(ctx, -w / 2, -h / 2, w, h, cornerRadius, hasStroke);
     } else {
       ctx.fillRect(-w / 2, -h / 2, w, h);
-    }
-    if (hasStroke) {
-      ctx.strokeRect(-w / 2, -h / 2, w, h);
+      if (hasStroke) {
+        ctx.strokeRect(-w / 2, -h / 2, w, h);
+      }
     }
   }
 
@@ -593,6 +593,7 @@ export class Renderer {
     x: number, y: number,
     w: number, h: number,
     r: number,
+    hasStroke: boolean = false,
   ) {
     ctx.beginPath();
     ctx.moveTo(x + r, y);
@@ -606,6 +607,7 @@ export class Renderer {
     ctx.quadraticCurveTo(x, y, x + r, y);
     ctx.closePath();
     ctx.fill();
+    if (hasStroke) ctx.stroke();
   }
 
   /** 画像レイヤー描画 */
@@ -677,6 +679,10 @@ export class Renderer {
 
   /** キャンバスをクリア */
   clear() {
-    this.ctx.clearRect(0, 0, this.width, this.height);
+    const dpr = window.devicePixelRatio || 1;
+    this.ctx.save();
+    this.ctx.setTransform(1, 0, 0, 1, 0, 0);
+    this.ctx.clearRect(0, 0, this.width * dpr, this.height * dpr);
+    this.ctx.restore();
   }
 }

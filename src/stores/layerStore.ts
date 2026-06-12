@@ -148,14 +148,20 @@ export const useLayerStore = create<LayerState>((set, get) => ({
     return id;
   },
 
-  removeLayer: (id) =>
+  removeLayer: (id) => {
+    const layer = get().layers.find((l) => l.id === id);
+    // ObjectURL のメモリリーク防止
+    if (layer?.mediaSource?.startsWith('blob:')) {
+      URL.revokeObjectURL(layer.mediaSource);
+    }
     set((s) => ({
       // 親レイヤー削除時、子レイヤーのparentIdをnullにリセット
       layers: s.layers
         .filter((l) => l.id !== id)
         .map((l) => l.parentId === id ? { ...l, parentId: null } : l),
       selectedLayerIds: s.selectedLayerIds.filter((sid) => sid !== id),
-    })),
+    }));
+  },
 
   duplicateLayer: (id) => {
     const state = get();
@@ -404,64 +410,6 @@ export const useLayerStore = create<LayerState>((set, get) => ({
     return val ?? undefined;
   },
 
-  // -- クリップボード --
-  copyLayers: () => {
-    const { layers, selectedLayerIds, animations } = get();
-    const selected = layers.filter((l) => selectedLayerIds.includes(l.id));
-    if (selected.length === 0) return;
-    const animSnap: AnimationMap = {};
-    for (const l of selected) {
-      if (animations[l.id]) animSnap[l.id] = JSON.parse(JSON.stringify(animations[l.id]));
-    }
-    clipboard = { layers: JSON.parse(JSON.stringify(selected)), animations: animSnap };
-  },
-
-  cutLayers: () => {
-    get().copyLayers();
-    get().saveSnapshot();
-    const { selectedLayerIds } = get();
-    set((s) => ({
-      layers: s.layers
-        .filter((l) => !selectedLayerIds.includes(l.id))
-        .map((l) =>
-          // 切り取られるレイヤーを親に持つ子のparentIdをリセット
-          l.parentId && selectedLayerIds.includes(l.parentId)
-            ? { ...l, parentId: null }
-            : l
-        ),
-      selectedLayerIds: [],
-    }));
-  },
-
-  pasteLayers: () => {
-    if (!clipboard) return;
-    get().saveSnapshot();
-    const newLayers: Layer[] = [];
-    const newAnims: AnimationMap = {};
-    const idMap: Record<string, string> = {};
-    for (const l of clipboard.layers) {
-      const newId = generateId();
-      idMap[l.id] = newId;
-      newLayers.push({ ...JSON.parse(JSON.stringify(l)), id: newId, name: `${l.name}` });
-      if (clipboard.animations[l.id]) {
-        newAnims[newId] = JSON.parse(JSON.stringify(clipboard.animations[l.id]));
-      }
-    }
-    set((s) => ({
-      layers: [...newLayers, ...s.layers],
-      animations: { ...s.animations, ...newAnims },
-      selectedLayerIds: newLayers.map((l) => l.id),
-    }));
-  },
-
-  duplicateSelected: () => {
-    const { selectedLayerIds } = get();
-    get().saveSnapshot();
-    for (const id of selectedLayerIds) {
-      get().duplicateLayer(id);
-    }
-  },
-
   splitLayer: (frame) => {
     const { layers, selectedLayerIds, animations } = get();
     if (selectedLayerIds.length === 0) return;
@@ -501,9 +449,16 @@ export const useLayerStore = create<LayerState>((set, get) => ({
   },
 
   deleteSelected: () => {
-    const { selectedLayerIds } = get();
+    const { selectedLayerIds, layers } = get();
     if (selectedLayerIds.length === 0) return;
     get().saveSnapshot();
+    // ObjectURL のメモリリーク防止
+    for (const id of selectedLayerIds) {
+      const layer = layers.find((l) => l.id === id);
+      if (layer?.mediaSource?.startsWith('blob:')) {
+        URL.revokeObjectURL(layer.mediaSource);
+      }
+    }
     set((s) => ({
       layers: s.layers
         .filter((l) => !selectedLayerIds.includes(l.id))

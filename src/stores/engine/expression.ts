@@ -32,7 +32,7 @@ let evaluationDepth = 0;
 const MAX_EVAL_DEPTH = 10;
 
 /** コンパイル済みエクスプレッションのキャッシュ */
-const compiledCache = new Map<string, Function>();
+const compiledCache = new Map<string, (sandbox: Record<string, unknown>) => unknown>();
 
 /**
  * エクスプレッションを評価して値を返す
@@ -74,7 +74,7 @@ export function evaluateExpression(
 }
 
 /** エクスプレッションをコンパイル（キャッシュ付き） */
-function compileExpression(expr: string): Function {
+function compileExpression(expr: string): (sandbox: Record<string, unknown>) => unknown {
   // セミコロン末尾を削除（return付加のため）
   const trimmed = expr.trim().replace(/;$/, '');
 
@@ -83,15 +83,41 @@ function compileExpression(expr: string): Function {
   }
 
   // サンドボックス変数をパラメータとして受け取る関数を生成
+  // Proxy でグローバルアクセスをブロック
   const fn = new Function(
     '$',
     `with ($) {
       ${trimmed.includes('return') ? trimmed : `return (${trimmed})`}
     }`,
-  );
+  ) as (sandbox: Record<string, unknown>) => unknown;
 
-  compiledCache.set(trimmed, fn);
-  return fn;
+  // Proxyでラップして、サンドボックスに存在しないプロパティへのアクセスを undefined にする
+  const safeFn = (sandbox: Record<string, unknown>): unknown => {
+    /** ブロックするグローバルオブジェクト */
+    const BLOCKED_GLOBALS = new Set([
+      'window', 'self', 'globalThis', 'document', 'location', 'navigator',
+      'fetch', 'XMLHttpRequest', 'WebSocket', 'importScripts',
+      'eval', 'Function', 'setTimeout', 'setInterval', 'requestAnimationFrame',
+      'localStorage', 'sessionStorage', 'indexedDB',
+      'crypto', 'alert', 'confirm', 'prompt', 'open', 'close',
+      'postMessage', 'Worker', 'SharedWorker', 'ServiceWorker',
+    ]);
+
+    const proxy = new Proxy(sandbox, {
+      has: () => true, // with文ですべてのルックアップをProxyに向ける
+      get: (target, prop: string) => {
+        if (BLOCKED_GLOBALS.has(prop)) return undefined;
+        if (prop in target) return target[prop];
+        return undefined;
+      },
+      set: () => false, // 書き込み禁止
+    });
+
+    return fn(proxy);
+  };
+
+  compiledCache.set(trimmed, safeFn);
+  return safeFn;
 }
 
 /** エクスプレッション内で使える変数・関数群（サンドボックス） */

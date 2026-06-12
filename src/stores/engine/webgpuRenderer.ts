@@ -336,7 +336,7 @@ export class WebGPURenderer {
       } else if (layer.type === 'shape' && layer.shapeData) {
         const shape = layer.shapeData;
         color = this.hexToRGBA(shape.fill, transform.opacity / 100);
-        rectSize = [200, 200];
+        rectSize = [shape.width ?? 200, shape.height ?? 200];
         cornerRadius = shape.cornerRadius || 0;
         switch (shape.shapeType) {
           case 'rectangle': shapeType = 1; break;
@@ -432,11 +432,29 @@ export class WebGPURenderer {
         case 'anchorPoint':
           if (Array.isArray(val)) result.anchorPoint = val as [number, number];
           break;
+        case 'anchorPoint.x':
+          if (typeof val === 'number') result.anchorPoint[0] = val;
+          break;
+        case 'anchorPoint.y':
+          if (typeof val === 'number') result.anchorPoint[1] = val;
+          break;
         case 'position':
           if (Array.isArray(val)) result.position = val as [number, number];
           break;
+        case 'position.x':
+          if (typeof val === 'number') result.position[0] = val;
+          break;
+        case 'position.y':
+          if (typeof val === 'number') result.position[1] = val;
+          break;
         case 'scale':
           if (Array.isArray(val)) result.scale = val as [number, number];
+          break;
+        case 'scale.x':
+          if (typeof val === 'number') result.scale[0] = val;
+          break;
+        case 'scale.y':
+          if (typeof val === 'number') result.scale[1] = val;
           break;
         case 'rotation':
           if (typeof val === 'number') result.rotation = val;
