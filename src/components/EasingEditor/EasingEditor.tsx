@@ -553,42 +553,47 @@ export function EasingEditor() {
     });
   }, [toCanvas]);
 
-  // ── アニメーションループ ──
-  const animate = useCallback(() => {
-    const c = currentView.current;
-    const t = targetView.current;
+  // ── アニメーションループ（refベースで自己参照の循環依存を回避） ──
+  const animateRef = useRef<(() => void) | null>(null);
 
-    if (isDragging.current) {
-      c.minX = t.minX; c.maxX = t.maxX; c.minY = t.minY; c.maxY = t.maxY;
-      draw();
-      animId.current = 0;
-      return;
-    }
+  // draw/startAnimをrefに保存
+  useEffect(() => { drawRef.current = draw; }, [draw]);
 
-    c.minX = lerp(c.minX, t.minX, ANIM_SPEED);
-    c.maxX = lerp(c.maxX, t.maxX, ANIM_SPEED);
-    c.minY = lerp(c.minY, t.minY, ANIM_SPEED);
-    c.maxY = lerp(c.maxY, t.maxY, ANIM_SPEED);
-    draw();
+  useEffect(() => {
+    animateRef.current = () => {
+      const c = currentView.current;
+      const t = targetView.current;
 
-    const diff = Math.abs(c.minX - t.minX) + Math.abs(c.maxX - t.maxX) +
-      Math.abs(c.minY - t.minY) + Math.abs(c.maxY - t.maxY);
+      if (isDragging.current) {
+        c.minX = t.minX; c.maxX = t.maxX; c.minY = t.minY; c.maxY = t.maxY;
+        drawRef.current?.();
+        animId.current = 0;
+        return;
+      }
 
-    if (diff > 0.0005) {
-      animId.current = requestAnimationFrame(animate);
-    } else {
-      c.minX = t.minX; c.maxX = t.maxX; c.minY = t.minY; c.maxY = t.maxY;
-      draw();
-      animId.current = 0;
-    }
+      c.minX = lerp(c.minX, t.minX, ANIM_SPEED);
+      c.maxX = lerp(c.maxX, t.maxX, ANIM_SPEED);
+      c.minY = lerp(c.minY, t.minY, ANIM_SPEED);
+      c.maxY = lerp(c.maxY, t.maxY, ANIM_SPEED);
+      drawRef.current?.();
+
+      const diff = Math.abs(c.minX - t.minX) + Math.abs(c.maxX - t.maxX) +
+        Math.abs(c.minY - t.minY) + Math.abs(c.maxY - t.maxY);
+
+      if (diff > 0.0005) {
+        animId.current = requestAnimationFrame(() => animateRef.current?.());
+      } else {
+        c.minX = t.minX; c.maxX = t.maxX; c.minY = t.minY; c.maxY = t.maxY;
+        drawRef.current?.();
+        animId.current = 0;
+      }
+    };
   }, [draw]);
 
   const startAnim = useCallback(() => {
-    if (!animId.current) animId.current = requestAnimationFrame(animate);
-  }, [animate]);
+    if (!animId.current) animId.current = requestAnimationFrame(() => animateRef.current?.());
+  }, []);
 
-  // draw/startAnimをrefに保存（宣言順序問題の解決）
-  useEffect(() => { drawRef.current = draw; }, [draw]);
   useEffect(() => { startAnimRef.current = startAnim; }, [startAnim]);
 
   useEffect(() => { return () => { if (animId.current) cancelAnimationFrame(animId.current); }; }, []);
@@ -1078,6 +1083,7 @@ export function EasingEditor() {
     }
   }, [curveMode, startAnim, draw, genAnchors]);
 
+  // eslint-disable-next-line react-hooks/immutability -- forceUpdateで再レンダリングされた時点のrefを読むので意図的
   const cursor = isDragging.current || bcHandleDrag.current ? 'grabbing'
     : bcHandleHov.current ? 'grab'
     : hovRef.current.idx >= 0 ? 'grab' : 'crosshair';
@@ -1188,7 +1194,8 @@ export function EasingEditor() {
           />
           {multiPoints && (
             <div style={{ position: 'absolute', top: 4, left: 4, fontSize: 8, color: '#3b82f6', background: 'rgba(0,0,0,0.5)', borderRadius: 3, padding: '1px 5px' }}>
-              {curveMode === 'bezier' ? `Multi (${anchorsRef.current.length} pts)` : curveMode.toUpperCase()}
+            {/* eslint-disable-next-line react-hooks/immutability -- multiPoints変更後のレンダーで最新値を表示 */}
+            {curveMode === 'bezier' ? `Multi (${anchorsRef.current.length} pts)` : curveMode.toUpperCase()}
             </div>
           )}
         </div>

@@ -25,9 +25,7 @@ export function Timeline() {
   const setCurrentFrame = useTimelineStore((s) => s.setCurrentFrame);
   const zoom = useTimelineStore((s) => s.zoom);
   const setZoom = useTimelineStore((s) => s.setZoom);
-  const scrollFrame = useTimelineStore((s) => s.scrollFrame);
-  const isPlaying = useTimelineStore((s) => s.isPlaying);
-  const setScrollFrame = useTimelineStore((s) => s.setScrollFrame);
+
 
   const settings = useProjectStore((s) => s.settings);
   const totalFrames = useProjectStore((s) => s.totalFrames);
@@ -556,7 +554,7 @@ export function Timeline() {
     const layerAnim = animations[layerId];
     if (!layerAnim) return [];
     return Object.entries(layerAnim)
-      .filter(([_, prop]) => prop.keyframes.length > 0)
+      .filter(([, prop]) => prop.keyframes.length > 0)
       .map(([name]) => name);
   };
 
@@ -1030,12 +1028,16 @@ function TimelineNavigator({
   } | null>(null);
   const [, setTick] = useState(0);
 
-  const trackEl = trackContainerRef.current;
-  const containerW = trackEl?.clientWidth || 1;
+  // ナビゲーター用のコンテナ幅を状態で管理（レンダー中にrefを参照しないため）
+  const [navContainerW, setNavContainerW] = useState(1);
+  useEffect(() => {
+    const el = trackContainerRef.current;
+    if (el) setNavContainerW(el.clientWidth || 1);
+  });
 
   // 現在の表示範囲（フレーム単位）
   const viewStart = zoom > 0 ? navScrollLeft / zoom : 0;
-  const viewEnd = zoom > 0 ? (navScrollLeft + containerW) / zoom : totalFrames;
+  const viewEnd = zoom > 0 ? (navScrollLeft + navContainerW) / zoom : totalFrames;
 
   // ナビゲーター上のバー位置・幅を計算（%ベース）
   const barLeftPct = totalFrames > 0 ? (viewStart / totalFrames) * 100 : 0;
