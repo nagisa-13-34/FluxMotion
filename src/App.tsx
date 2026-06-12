@@ -124,7 +124,14 @@ export default function App() {
             break;
           case 'c':
             e.preventDefault();
-            useLayerStore.getState().copyLayers();
+            if (e.shiftKey) {
+              // プリコンポジション（Ctrl+Shift+C）
+              useLayerStore.getState().saveSnapshot();
+              useLayerStore.getState().precompose();
+              renderCallbackRef.current?.();
+            } else {
+              useLayerStore.getState().copyLayers();
+            }
             break;
           case 'v':
             e.preventDefault();

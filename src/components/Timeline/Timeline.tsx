@@ -704,7 +704,7 @@ export function Timeline() {
               >
                 <div
                   className="layer-color-tag"
-                  style={{ background: getLayerColor(layer.type) }}
+                  style={{ background: layer.labelColor || getLayerColor(layer.type) }}
                 />
                 <button
                   className={`layer-visibility-btn${layer.visible ? ' active' : ''}`}

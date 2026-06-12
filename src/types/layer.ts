@@ -89,6 +89,8 @@ export interface Layer {
   mediaSource?: string;
   /** エクスプレッション（プロパティ名 → 式文字列） */
   expressions?: Record<string, string>;
+  /** ラベルカラー（ユーザー設定の色タグ） */
+  labelColor?: string;
 }
 
 /** デフォルトのトランスフォーム */

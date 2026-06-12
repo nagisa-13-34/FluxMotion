@@ -57,6 +57,10 @@ interface LayerState {
   splitLayer: (frame: number) => void;
   /** 選択レイヤーを削除 */
   deleteSelected: () => void;
+  /** 選択レイヤーをヌルレイヤーの子にまとめる（プリコンポジション） */
+  precompose: () => void;
+  /** ラベルカラーを設定 */
+  setLabelColor: (id: string, color: string) => void;
 
   // -- Undo/Redo --
   saveSnapshot: () => void;
@@ -569,6 +573,51 @@ export const useLayerStore = create<LayerState>((set, get) => ({
     if (snapshot) {
       set({ layers: snapshot.layers, animations: snapshot.animations });
     }
+  },
+
+  precompose: () => {
+    const state = get();
+    const selectedIds = state.selectedLayerIds;
+    if (selectedIds.length === 0) return;
+
+    // ヌルレイヤーを作成
+    const nullId = generateId();
+    // 選択レイヤーの中央位置を計算
+    const selectedLayers = state.layers.filter(l => selectedIds.includes(l.id));
+    const avgX = selectedLayers.reduce((sum, l) => sum + l.transform.position[0], 0) / selectedLayers.length;
+    const avgY = selectedLayers.reduce((sum, l) => sum + l.transform.position[1], 0) / selectedLayers.length;
+
+    const nullLayer: Layer = {
+      id: nullId,
+      name: `ヌル ${state.layers.filter(l => l.type === 'null').length + 1}`,
+      type: 'null',
+      visible: true,
+      locked: false,
+      solo: false,
+      inPoint: Math.min(...selectedLayers.map(l => l.inPoint)),
+      outPoint: Math.max(...selectedLayers.map(l => l.outPoint)),
+      transform: { ...createDefaultTransform(), position: [Math.round(avgX), Math.round(avgY)] },
+      blendMode: 'normal',
+      parentId: null,
+    };
+
+    // 選択レイヤーの親をヌルに設定
+    const updatedLayers = state.layers.map(l =>
+      selectedIds.includes(l.id) ? { ...l, parentId: nullId } : l
+    );
+
+    // ヌルを選択レイヤーの一番上に挿入
+    const firstSelectedIdx = updatedLayers.findIndex(l => selectedIds.includes(l.id));
+    const newLayers = [...updatedLayers];
+    newLayers.splice(firstSelectedIdx, 0, nullLayer);
+
+    set({ layers: newLayers, selectedLayerIds: [nullId] });
+  },
+
+  setLabelColor: (id, color) => {
+    set((s) => ({
+      layers: s.layers.map(l => l.id === id ? { ...l, labelColor: color } : l),
+    }));
   },
 }));
 
