@@ -63,6 +63,18 @@ export function ContextMenu() {
               }}
               style={item.disabled ? { opacity: 0.4, cursor: 'default' } : undefined}
             >
+              {item.color && (
+                <span style={{
+                  display: 'inline-block',
+                  width: 10,
+                  height: 10,
+                  borderRadius: '50%',
+                  background: item.color,
+                  marginRight: 6,
+                  verticalAlign: 'middle',
+                  border: '1px solid rgba(255,255,255,0.2)',
+                }} />
+              )}
               {item.label}
               {item.shortcut && <span className="shortcut">{item.shortcut}</span>}
             </div>

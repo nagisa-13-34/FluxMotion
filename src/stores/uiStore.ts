@@ -139,6 +139,8 @@ export interface ContextMenuItem {
   action: () => void;
   separator?: boolean;
   disabled?: boolean;
+  /** カラーインジケーター（ラベルカラー選択用） */
+  color?: string;
 }
 
 interface UIState {

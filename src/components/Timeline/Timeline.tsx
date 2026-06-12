@@ -704,7 +704,24 @@ export function Timeline() {
               >
                 <div
                   className="layer-color-tag"
-                  style={{ background: layer.labelColor || getLayerColor(layer.type) }}
+                  style={{ background: layer.labelColor || getLayerColor(layer.type), cursor: 'pointer' }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const presetColors = [
+                      '#E53E3E', '#DD6B20', '#D69E2E', '#38A169',
+                      '#3182CE', '#805AD5', '#D53F8C', '#718096',
+                    ];
+                    showContextMenu(e.clientX, e.clientY, [
+                      ...presetColors.map(color => ({
+                        label: '',
+                        color,
+                        action: () => useLayerStore.getState().setLabelColor(layer.id, color),
+                      })),
+                      { separator: true, label: '', action: () => {} },
+                      { label: 'リセット', action: () => useLayerStore.getState().updateLayer(layer.id, { labelColor: undefined }) },
+                    ]);
+                  }}
+                  title="ラベルカラーを変更"
                 />
                 <button
                   className={`layer-visibility-btn${layer.visible ? ' active' : ''}`}
