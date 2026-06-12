@@ -441,19 +441,19 @@ export function Preview({ onRenderReady }: PreviewProps) {
               style={{
                 position: 'absolute', top: 0, left: 0,
                 width: canvasWidth, height: canvasHeight,
-                pointerEvents: 'none', zIndex: 1,
+                pointerEvents: 'none', zIndex: 10,
               }}
               viewBox={`0 0 ${settings.width} ${settings.height}`}
             >
               <defs>
                 <pattern id="grid-pattern" width={gridSize} height={gridSize} patternUnits="userSpaceOnUse">
-                  <path d={`M ${gridSize} 0 L 0 0 0 ${gridSize}`} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="1" />
+                  <path d={`M ${gridSize} 0 L 0 0 0 ${gridSize}`} fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="1" />
                 </pattern>
               </defs>
               <rect width="100%" height="100%" fill="url(#grid-pattern)" />
               {/* 中心線 */}
-              <line x1={settings.width / 2} y1="0" x2={settings.width / 2} y2={settings.height} stroke="rgba(255,255,255,0.15)" strokeWidth="1" strokeDasharray="4 4" />
-              <line x1="0" y1={settings.height / 2} x2={settings.width} y2={settings.height / 2} stroke="rgba(255,255,255,0.15)" strokeWidth="1" strokeDasharray="4 4" />
+              <line x1={settings.width / 2} y1="0" x2={settings.width / 2} y2={settings.height} stroke="rgba(120,200,255,0.35)" strokeWidth="1" strokeDasharray="4 4" />
+              <line x1="0" y1={settings.height / 2} x2={settings.width} y2={settings.height / 2} stroke="rgba(120,200,255,0.35)" strokeWidth="1" strokeDasharray="4 4" />
             </svg>
           )}
 

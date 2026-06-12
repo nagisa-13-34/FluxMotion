@@ -296,6 +296,25 @@ export function MenuBar() {
                   <div
                     className="dropdown-item"
                     onClick={() => {
+                      useUIStore.getState().toggleGrid();
+                      setActiveMenu(null);
+                    }}
+                  >
+                    {useUIStore.getState().showGrid ? '✓ ' : ''}グリッド表示 <span className="shortcut">Ctrl+'</span>
+                  </div>
+                  <div
+                    className="dropdown-item"
+                    onClick={() => {
+                      useUIStore.getState().toggleSnap();
+                      setActiveMenu(null);
+                    }}
+                  >
+                    {useUIStore.getState().snapEnabled ? '✓ ' : ''}スナップ <span className="shortcut">Ctrl+Shift+;</span>
+                  </div>
+                  <div className="dropdown-separator" />
+                  <div
+                    className="dropdown-item"
+                    onClick={() => {
                       useUIStore.getState().resetLayout();
                       setActiveMenu(null);
                     }}

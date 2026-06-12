@@ -707,13 +707,15 @@ export function Timeline() {
                   style={{ background: layer.labelColor || getLayerColor(layer.type), cursor: 'pointer' }}
                   onClick={(e) => {
                     e.stopPropagation();
-                    const presetColors = [
-                      '#E53E3E', '#DD6B20', '#D69E2E', '#38A169',
-                      '#3182CE', '#805AD5', '#D53F8C', '#718096',
+                    const presetColors: [string, string][] = [
+                      ['#E53E3E', 'レッド'], ['#DD6B20', 'オレンジ'],
+                      ['#D69E2E', 'イエロー'], ['#38A169', 'グリーン'],
+                      ['#3182CE', 'ブルー'], ['#805AD5', 'パープル'],
+                      ['#D53F8C', 'ピンク'], ['#718096', 'グレー'],
                     ];
                     showContextMenu(e.clientX, e.clientY, [
-                      ...presetColors.map(color => ({
-                        label: '',
+                      ...presetColors.map(([color, name]) => ({
+                        label: name,
                         color,
                         action: () => useLayerStore.getState().setLabelColor(layer.id, color),
                       })),
@@ -772,13 +774,12 @@ export function Timeline() {
                 </span>
                 {/* モーションブラートグル */}
                 <button
-                  className={`layer-lock-btn${layer.motionBlur ? ' active' : ''}`}
+                  className={`layer-motionblur-btn${layer.motionBlur ? ' active' : ''}`}
                   onClick={(e) => {
                     e.stopPropagation();
                     useLayerStore.getState().updateLayer(layer.id, { motionBlur: !layer.motionBlur });
                   }}
                   title={layer.motionBlur ? 'モーションブラー OFF' : 'モーションブラー ON'}
-                  style={layer.motionBlur ? { color: '#60a5fa' } : undefined}
                 >
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />

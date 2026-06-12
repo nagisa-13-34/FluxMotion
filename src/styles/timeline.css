@@ -621,3 +621,31 @@
 .timeline-navigator-handle-right {
   right: -3px;
 }
+
+/* ---- Motion Blur Toggle ---- */
+.layer-motionblur-btn {
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  color: var(--color-text-dim);
+  transition: all var(--transition-fast);
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  padding: 0;
+}
+.layer-motionblur-btn:hover {
+  color: #60a5fa;
+  background: rgba(96, 165, 250, 0.1);
+}
+.layer-motionblur-btn.active {
+  color: #60a5fa;
+}
+.layer-motionblur-btn svg {
+  width: 12px;
+  height: 12px;
+}
