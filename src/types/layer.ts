@@ -91,6 +91,8 @@ export interface Layer {
   expressions?: Record<string, string>;
   /** ラベルカラー（ユーザー設定の色タグ） */
   labelColor?: string;
+  /** モーションブラー有効 */
+  motionBlur?: boolean;
 }
 
 /** デフォルトのトランスフォーム */

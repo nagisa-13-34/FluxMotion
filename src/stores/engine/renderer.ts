@@ -103,15 +103,28 @@ export class Renderer {
 
       ctx.save();
       this.applyBlendMode(ctx, layer);
-      ctx.globalAlpha = transform.opacity / 100;
 
-      if (transform.directionalScale) {
-        // 方向別スケール: 上下左右を独立にスケーリング（クリップベース）
-        this.renderDirectionalScale(ctx, transform, renderContent);
+      if (layer.motionBlur && !transform.directionalScale) {
+        // モーションブラー: 5サンプルで前後フレームを半透明合成
+        const samples = [-1, -0.5, 0, 0.5, 1];
+        const sampleAlpha = (transform.opacity / 100) / samples.length;
+        for (const offset of samples) {
+          const sampleFrame = currentFrame + offset;
+          const sampleTransform = this.resolveWorldTransform(layer, layers, sampleFrame, animations);
+          ctx.save();
+          ctx.globalAlpha = sampleAlpha;
+          this.applyTransformValues(ctx, sampleTransform);
+          renderContent();
+          ctx.restore();
+        }
       } else {
-        // 通常スケール
-        this.applyTransformValues(ctx, transform);
-        renderContent();
+        ctx.globalAlpha = transform.opacity / 100;
+        if (transform.directionalScale) {
+          this.renderDirectionalScale(ctx, transform, renderContent);
+        } else {
+          this.applyTransformValues(ctx, transform);
+          renderContent();
+        }
       }
 
       ctx.restore();
