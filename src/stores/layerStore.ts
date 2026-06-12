@@ -544,16 +544,16 @@ export const useLayerStore = create<LayerState>((set, get) => ({
   saveSnapshot: () => {
     const { layers, animations } = get();
     useHistoryStore.getState().pushSnapshot({
-      layers: JSON.parse(JSON.stringify(layers)),
-      animations: JSON.parse(JSON.stringify(animations)),
+      layers: structuredClone(layers),
+      animations: structuredClone(animations),
     });
   },
 
   undo: () => {
     const { layers, animations } = get();
     const snapshot = useHistoryStore.getState().undo({
-      layers: JSON.parse(JSON.stringify(layers)),
-      animations: JSON.parse(JSON.stringify(animations)),
+      layers: structuredClone(layers),
+      animations: structuredClone(animations),
     });
     if (snapshot) {
       set({ layers: snapshot.layers, animations: snapshot.animations });
@@ -563,8 +563,8 @@ export const useLayerStore = create<LayerState>((set, get) => ({
   redo: () => {
     const { layers, animations } = get();
     const snapshot = useHistoryStore.getState().redo({
-      layers: JSON.parse(JSON.stringify(layers)),
-      animations: JSON.parse(JSON.stringify(animations)),
+      layers: structuredClone(layers),
+      animations: structuredClone(animations),
     });
     if (snapshot) {
       set({ layers: snapshot.layers, animations: snapshot.animations });
