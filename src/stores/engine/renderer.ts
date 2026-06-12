@@ -63,12 +63,16 @@ export class Renderer {
     ctx.fillStyle = this._backgroundColor;
     ctx.fillRect(0, 0, this.width, this.height);
 
+    // ソロレイヤーの判定（いずれかがsolo=trueならsoloレイヤーのみ描画）
+    const hasSoloLayer = layers.some(l => l.solo);
+
     // 背面から前面に向かって描画（配列の末尾が背面）
     for (let i = layers.length - 1; i >= 0; i--) {
       const layer = layers[i];
 
       // 非表示・範囲外はスキップ
       if (!layer.visible) continue;
+      if (hasSoloLayer && !layer.solo) continue;
       if (currentFrame < layer.inPoint || currentFrame > layer.outPoint) continue;
 
       // キーフレームアニメーション + エクスプレッション + 親子継承からトランスフォームを取得

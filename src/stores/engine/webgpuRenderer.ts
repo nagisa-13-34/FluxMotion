@@ -313,10 +313,14 @@ export class WebGPURenderer {
     clearPass.draw(6);
     clearPass.end();
 
+    // ソロレイヤーの判定
+    const hasSoloLayer = layers.some(l => l.solo);
+
     // レイヤーを背面から前面に描画
     for (let i = layers.length - 1; i >= 0; i--) {
       const layer = layers[i];
       if (!layer.visible) continue;
+      if (hasSoloLayer && !layer.solo) continue;
       if (currentFrame < layer.inPoint || currentFrame > layer.outPoint) continue;
 
       // テキストレイヤーは後でCanvas2D経由
@@ -389,8 +393,9 @@ export class WebGPURenderer {
     currentFrame: number,
     _animations?: Record<string, Record<string, AnimatedProperty>>,
   ) {
+    const hasSoloLayer = layers.some(l => l.solo);
     const textLayers = layers.filter(
-      (l) => l.type === 'text' && l.visible && currentFrame >= l.inPoint && currentFrame <= l.outPoint,
+      (l) => l.type === 'text' && l.visible && (!hasSoloLayer || l.solo) && currentFrame >= l.inPoint && currentFrame <= l.outPoint,
     );
     if (textLayers.length === 0) return;
 
