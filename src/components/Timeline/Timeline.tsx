@@ -267,23 +267,70 @@ export function Timeline() {
     };
   }, [kfDrag, zoom, setCurrentFrame, selectedKfs]);
 
-  // 選択中KFのDelete削除（captureフェーズでレイヤー削除を防ぐ）
+  // キーフレームクリップボード
+  const [kfClipboard, setKfClipboard] = useState<{
+    kfs: { layerId: string; propName: string; kf: Keyframe; relativeTime: number }[];
+  } | null>(null);
+
+  // 選択中KFのDelete削除 + コピー&ペースト（captureフェーズでレイヤー削除を防ぐ）
   useEffect(() => {
     if (selectedKfs.length === 0) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
+      // Delete/Backspace: キーフレーム削除
       if (e.code === 'Delete' || e.code === 'Backspace') {
         e.preventDefault();
         e.stopPropagation();
+        useLayerStore.getState().saveSnapshot();
         for (const sel of selectedKfs) {
           removeKeyframe(sel.layerId, sel.propName, sel.time);
         }
         setSelectedKfs([]);
+        return;
+      }
+
+      // Ctrl+C: キーフレームコピー
+      if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
+        e.preventDefault();
+        e.stopPropagation();
+        const store = useLayerStore.getState();
+        const minTime = Math.min(...selectedKfs.map(s => s.time));
+        const copied = selectedKfs.map(sel => {
+          const kf = store.animations[sel.layerId]?.[sel.propName]?.keyframes
+            .find(k => k.time === sel.time);
+          return kf ? {
+            layerId: sel.layerId,
+            propName: sel.propName,
+            kf: JSON.parse(JSON.stringify(kf)) as Keyframe,
+            relativeTime: sel.time - minTime,
+          } : null;
+        }).filter(Boolean) as { layerId: string; propName: string; kf: Keyframe; relativeTime: number }[];
+        if (copied.length > 0) {
+          setKfClipboard({ kfs: copied });
+        }
+        return;
+      }
+
+      // Ctrl+V: キーフレームペースト（現在フレームを基準にオフセット）
+      if ((e.ctrlKey || e.metaKey) && e.key === 'v' && kfClipboard) {
+        e.preventDefault();
+        e.stopPropagation();
+        useLayerStore.getState().saveSnapshot();
+        const pasteFrame = useTimelineStore.getState().currentFrame;
+        for (const item of kfClipboard.kfs) {
+          const newKf: Keyframe = {
+            ...JSON.parse(JSON.stringify(item.kf)),
+            time: pasteFrame + item.relativeTime,
+          };
+          useLayerStore.getState().addKeyframe(item.layerId, item.propName, newKf);
+        }
+        return;
       }
     };
     window.addEventListener('keydown', handleKeyDown, true);
     return () => window.removeEventListener('keydown', handleKeyDown, true);
-  }, [selectedKfs, removeKeyframe]);
+  }, [selectedKfs, removeKeyframe, kfClipboard]);
 
   // ズーム後のscrollLeft調整用ref
   const pendingScrollLeftRef = useRef<number | null>(null);
