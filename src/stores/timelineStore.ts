@@ -10,6 +10,11 @@ interface TimelineState {
   /** 左スクロール位置（フレーム） */
   scrollFrame: number;
 
+  /** ワークエリア開始フレーム（null = 未設定） */
+  workAreaIn: number | null;
+  /** ワークエリア終了フレーム（null = 未設定） */
+  workAreaOut: number | null;
+
   setCurrentFrame: (frame: number) => void;
   play: () => void;
   pause: () => void;
@@ -20,13 +25,24 @@ interface TimelineState {
   stepBackward: () => void;
   setZoom: (zoom: number) => void;
   setScrollFrame: (frame: number) => void;
+
+  /** ワークエリアIn点を現在フレームに設定 */
+  setWorkAreaIn: () => void;
+  /** ワークエリアOut点を現在フレームに設定 */
+  setWorkAreaOut: () => void;
+  /** ワークエリアをクリア */
+  clearWorkArea: () => void;
+  /** ワークエリアを直接設定（ドラッグ用） */
+  setWorkArea: (inFrame: number | null, outFrame: number | null) => void;
 }
 
-export const useTimelineStore = create<TimelineState>((set) => ({
+export const useTimelineStore = create<TimelineState>((set, get) => ({
   currentFrame: 0,
   isPlaying: false,
   zoom: 8,
   scrollFrame: 0,
+  workAreaIn: null,
+  workAreaOut: null,
 
   setCurrentFrame: (frame) =>
     set({ currentFrame: Math.max(0, Math.round(frame)) }),
@@ -35,8 +51,14 @@ export const useTimelineStore = create<TimelineState>((set) => ({
   pause: () => set({ isPlaying: false }),
   togglePlay: () => set((s) => ({ isPlaying: !s.isPlaying })),
 
-  goToStart: () => set({ currentFrame: 0 }),
-  goToEnd: (totalFrames) => set({ currentFrame: totalFrames }),
+  goToStart: () => {
+    const waIn = get().workAreaIn;
+    set({ currentFrame: waIn !== null ? waIn : 0 });
+  },
+  goToEnd: (totalFrames) => {
+    const waOut = get().workAreaOut;
+    set({ currentFrame: waOut !== null ? waOut : totalFrames });
+  },
 
   stepForward: () =>
     set((s) => ({ currentFrame: Math.min(s.currentFrame + 1, 999999) })),
@@ -47,4 +69,10 @@ export const useTimelineStore = create<TimelineState>((set) => ({
     set({ zoom: Math.max(0.1, zoom) }),
   setScrollFrame: (frame) =>
     set({ scrollFrame: Math.max(0, frame) }),
+
+  setWorkAreaIn: () => set((s) => ({ workAreaIn: s.currentFrame })),
+  setWorkAreaOut: () => set((s) => ({ workAreaOut: s.currentFrame })),
+  clearWorkArea: () => set({ workAreaIn: null, workAreaOut: null }),
+  setWorkArea: (inFrame, outFrame) => set({ workAreaIn: inFrame, workAreaOut: outFrame }),
 }));
+

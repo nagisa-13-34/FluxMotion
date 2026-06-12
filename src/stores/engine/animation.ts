@@ -11,19 +11,22 @@ export class AnimationLoop {
   private getFrame: () => number;
   private setFrame: (frame: number) => void;
   private getTotalFrames: () => number;
+  private getWorkArea: () => { inFrame: number | null; outFrame: number | null };
 
   constructor(
     fps: number,
     onFrame: (frame: number) => void,
     getFrame: () => number,
     setFrame: (frame: number) => void,
-    getTotalFrames: () => number
+    getTotalFrames: () => number,
+    getWorkArea?: () => { inFrame: number | null; outFrame: number | null },
   ) {
     this.frameDuration = 1000 / fps;
     this.onFrame = onFrame;
     this.getFrame = getFrame;
     this.setFrame = setFrame;
     this.getTotalFrames = getTotalFrames;
+    this.getWorkArea = getWorkArea || (() => ({ inFrame: null, outFrame: null }));
   }
 
   /** FPS変更 */
@@ -67,9 +70,13 @@ export class AnimationLoop {
       let currentFrame = this.getFrame();
       currentFrame += framesToAdvance;
 
-      const totalFrames = this.getTotalFrames();
-      if (currentFrame >= totalFrames) {
-        currentFrame = 0; // ループ再生
+      // ワークエリアまたは全体でループ
+      const wa = this.getWorkArea();
+      const loopStart = wa.inFrame ?? 0;
+      const loopEnd = wa.outFrame ?? this.getTotalFrames();
+
+      if (currentFrame >= loopEnd) {
+        currentFrame = loopStart;
       }
 
       this.setFrame(currentFrame);
@@ -77,3 +84,4 @@ export class AnimationLoop {
     }
   };
 }
+

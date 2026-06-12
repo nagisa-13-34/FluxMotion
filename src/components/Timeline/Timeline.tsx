@@ -26,6 +26,8 @@ export function Timeline() {
   const setCurrentFrame = useTimelineStore((s) => s.setCurrentFrame);
   const zoom = useTimelineStore((s) => s.zoom);
   const setZoom = useTimelineStore((s) => s.setZoom);
+  const workAreaIn = useTimelineStore((s) => s.workAreaIn);
+  const workAreaOut = useTimelineStore((s) => s.workAreaOut);
 
 
   const settings = useProjectStore((s) => s.settings);
@@ -829,6 +831,30 @@ export function Timeline() {
             onMouseDown={handleRulerMouseDown}
           >
             {renderRuler()}
+            {/* ワークエリアバー */}
+            {workAreaIn !== null && workAreaOut !== null && workAreaIn < workAreaOut && (
+              <div
+                className="work-area-bar"
+                style={{
+                  position: 'absolute',
+                  left: frameToX(workAreaIn),
+                  width: (workAreaOut - workAreaIn) * zoom,
+                  top: 0,
+                  height: '100%',
+                  background: 'rgba(59, 130, 246, 0.2)',
+                  borderLeft: '2px solid #3b82f6',
+                  borderRight: '2px solid #3b82f6',
+                  pointerEvents: 'auto',
+                  cursor: 'grab',
+                  zIndex: 1,
+                }}
+                onDoubleClick={(e) => {
+                  e.stopPropagation();
+                  useTimelineStore.getState().clearWorkArea();
+                }}
+                title="ワークエリア（ダブルクリックでクリア）"
+              />
+            )}
             {/* プレイヘッド（ルーラー上） */}
             <div
               className="playhead"

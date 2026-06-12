@@ -49,6 +49,10 @@ export default function App() {
       () => useTimelineStore.getState().currentFrame,
       (frame) => useTimelineStore.getState().setCurrentFrame(frame),
       () => useProjectStore.getState().totalFrames(),
+      () => {
+        const tl = useTimelineStore.getState();
+        return { inFrame: tl.workAreaIn, outFrame: tl.workAreaOut };
+      },
     );
     animLoopRef.current = loop;
     return () => loop.stop();
@@ -236,6 +240,13 @@ export default function App() {
           break;
         case 'KeyG':
           useUIStore.getState().setTool('pen');
+          break;
+        // ワークエリア
+        case 'KeyB':
+          useTimelineStore.getState().setWorkAreaIn();
+          break;
+        case 'KeyN':
+          useTimelineStore.getState().setWorkAreaOut();
           break;
 
         case 'KeyU': {
