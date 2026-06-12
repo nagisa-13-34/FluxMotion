@@ -39,7 +39,7 @@ export const useTimelineStore = create<TimelineState>((set) => ({
   goToEnd: (totalFrames) => set({ currentFrame: totalFrames }),
 
   stepForward: () =>
-    set((s) => ({ currentFrame: s.currentFrame + 1 })),
+    set((s) => ({ currentFrame: Math.min(s.currentFrame + 1, 999999) })),
   stepBackward: () =>
     set((s) => ({ currentFrame: Math.max(0, s.currentFrame - 1) })),
 

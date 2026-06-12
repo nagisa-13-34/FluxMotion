@@ -239,14 +239,14 @@ export function EasingEditor() {
   const [customPresets, setCustomPresets] = useState<Preset[]>(loadCustomPresets);
   const [hiddenBuiltIn, setHiddenBuiltIn] = useState<string[]>(loadHiddenBuiltIn);
   const [customCategories, setCustomCategories] = useState<string[]>(loadCustomCategories);
-  const visibleBuiltIn = BUILT_IN_PRESETS.filter(p => !hiddenBuiltIn.includes(p.name));
-  const allPresets = [...visibleBuiltIn, ...customPresets];
+  const visibleBuiltIn = useMemo(() => BUILT_IN_PRESETS.filter(p => !hiddenBuiltIn.includes(p.name)), [hiddenBuiltIn]);
+  const allPresets = useMemo(() => [...visibleBuiltIn, ...customPresets], [visibleBuiltIn, customPresets]);
   // カテゴリー = プリセット由来 + 明示的に保存されたカテゴリーの和集合
-  const presetCategories = [...new Set(allPresets.map(p => p.category))];
-  const categories = [...new Set([...presetCategories, ...customCategories])];
+  const presetCategories = useMemo(() => [...new Set(allPresets.map(p => p.category))], [allPresets]);
+  const categories = useMemo(() => [...new Set([...presetCategories, ...customCategories])], [presetCategories, customCategories]);
   const [activeCategory, setActiveCategory] = useState<string>(categories[0] || 'Basic');
   const effectiveCategory = categories.includes(activeCategory) ? activeCategory : (categories[0] || 'Basic');
-  const filteredPresets = allPresets.filter(p => p.category === effectiveCategory);
+  const filteredPresets = useMemo(() => allPresets.filter(p => p.category === effectiveCategory), [allPresets, effectiveCategory]);
 
   // 右クリックメニュー
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; presetName: string } | null>(null);

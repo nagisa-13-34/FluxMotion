@@ -1,13 +1,42 @@
+import { useEffect, useRef } from 'react';
 import { useUIStore } from '../../stores/uiStore';
 
 export function ContextMenu() {
   const { show, x, y, items } = useUIStore((s) => s.contextMenu);
   const hideContextMenu = useUIStore((s) => s.hideContextMenu);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // 外側クリックで閉じる
+  useEffect(() => {
+    if (!show) return;
+
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        hideContextMenu();
+      }
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') hideContextMenu();
+    };
+
+    // 次のフレームでリスナーを追加（右クリックイベントが即座に発火するのを防ぐ）
+    requestAnimationFrame(() => {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('keydown', handleKeyDown);
+    });
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [show, hideContextMenu]);
 
   if (!show) return null;
 
   return (
     <div
+      ref={menuRef}
       className="dropdown"
       style={{
         position: 'fixed',
