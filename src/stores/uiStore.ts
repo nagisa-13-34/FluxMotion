@@ -182,6 +182,18 @@ interface UIState {
   resetLayout: () => void;
   /** パネルを開く（閉じていた場合） */
   openPanel: (panelId: string) => void;
+
+  /** グリッド表示 */
+  showGrid: boolean;
+  setShowGrid: (v: boolean) => void;
+  toggleGrid: () => void;
+  /** スナップ有効 */
+  snapEnabled: boolean;
+  setSnapEnabled: (v: boolean) => void;
+  toggleSnap: () => void;
+  /** グリッドサイズ（px） */
+  gridSize: number;
+  setGridSize: (v: number) => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -193,6 +205,9 @@ export const useUIStore = create<UIState>((set) => ({
   showOnlyKeyframed: false,
   expandedLayerIds: [],
   showCompSettings: false,
+  showGrid: false,
+  snapEnabled: true,
+  gridSize: 50,
 
   setTool: (tool) => set({ activeTool: tool }),
   setActiveShapeType: (type) => set({ activeShapeType: type }),
@@ -216,6 +231,12 @@ export const useUIStore = create<UIState>((set) => ({
     })),
 
   setShowCompSettings: (v) => set({ showCompSettings: v }),
+
+  setShowGrid: (v) => set({ showGrid: v }),
+  toggleGrid: () => set((s) => ({ showGrid: !s.showGrid })),
+  setSnapEnabled: (v) => set({ snapEnabled: v }),
+  toggleSnap: () => set((s) => ({ snapEnabled: !s.snapEnabled })),
+  setGridSize: (v) => set({ gridSize: Math.max(10, Math.min(200, v)) }),
 
   getFlexModel: () => flexModel,
 

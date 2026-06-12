@@ -50,6 +50,11 @@ export function Preview({ onRenderReady }: PreviewProps) {
     currentY: number;
   } | null>(null);
 
+  // スナップライン表示
+  const [snapLines, setSnapLines] = useState<{ axis: 'x' | 'y'; pos: number }[]>([]);
+  const showGrid = useUIStore((s) => s.showGrid);
+  const gridSize = useUIStore((s) => s.gridSize);
+
   const scale = viewportZoom / 100;
   const canvasWidth = Math.round(settings.width * scale);
   const canvasHeight = Math.round(settings.height * scale);
@@ -430,6 +435,46 @@ export function Preview({ onRenderReady }: PreviewProps) {
             onClick={handleCanvasClick}
           />
 
+          {/* グリッドオーバーレイ */}
+          {showGrid && (
+            <svg
+              style={{
+                position: 'absolute', top: 0, left: 0,
+                width: canvasWidth, height: canvasHeight,
+                pointerEvents: 'none', zIndex: 1,
+              }}
+              viewBox={`0 0 ${settings.width} ${settings.height}`}
+            >
+              <defs>
+                <pattern id="grid-pattern" width={gridSize} height={gridSize} patternUnits="userSpaceOnUse">
+                  <path d={`M ${gridSize} 0 L 0 0 0 ${gridSize}`} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="1" />
+                </pattern>
+              </defs>
+              <rect width="100%" height="100%" fill="url(#grid-pattern)" />
+              {/* 中心線 */}
+              <line x1={settings.width / 2} y1="0" x2={settings.width / 2} y2={settings.height} stroke="rgba(255,255,255,0.15)" strokeWidth="1" strokeDasharray="4 4" />
+              <line x1="0" y1={settings.height / 2} x2={settings.width} y2={settings.height / 2} stroke="rgba(255,255,255,0.15)" strokeWidth="1" strokeDasharray="4 4" />
+            </svg>
+          )}
+
+          {/* スナップライン */}
+          {snapLines.length > 0 && (
+            <svg
+              style={{
+                position: 'absolute', top: 0, left: 0,
+                width: canvasWidth, height: canvasHeight,
+                pointerEvents: 'none', zIndex: 2,
+              }}
+              viewBox={`0 0 ${settings.width} ${settings.height}`}
+            >
+              {snapLines.map((sl, i) =>
+                sl.axis === 'x'
+                  ? <line key={i} x1={sl.pos} y1="0" x2={sl.pos} y2={settings.height} stroke="#f0f" strokeWidth="1" />
+                  : <line key={i} x1="0" y1={sl.pos} x2={settings.width} y2={sl.pos} stroke="#f0f" strokeWidth="1" />
+              )}
+            </svg>
+          )}
+
           {/* シェイプ描画プレビュー */}
           {shapeDraw && (() => {
             const x = Math.min(shapeDraw.startX, shapeDraw.currentX);
@@ -548,15 +593,39 @@ export function Preview({ onRenderReady }: PreviewProps) {
                       useLayerStore.getState().saveSnapshot();
                     }
                     if (!moved) return;
-                    const newPos: [number, number] = [
-                      Math.round((origPos[0] + dx) * 10) / 10,
-                      Math.round((origPos[1] + dy) * 10) / 10,
-                    ];
+                    let newX = Math.round((origPos[0] + dx) * 10) / 10;
+                    let newY = Math.round((origPos[1] + dy) * 10) / 10;
+
+                    // スナップ（Shiftで無効化）
+                    const ui = useUIStore.getState();
+                    const snappedLines: { axis: 'x' | 'y'; pos: number }[] = [];
+                    if (ui.snapEnabled && !me.shiftKey) {
+                      const snapThreshold = 6;
+                      const cx = settings.width / 2;
+                      const cy = settings.height / 2;
+                      const grid = ui.gridSize;
+
+                      // コンポ中心スナップ
+                      if (Math.abs(newX - cx) < snapThreshold) { newX = cx; snappedLines.push({ axis: 'x', pos: cx }); }
+                      if (Math.abs(newY - cy) < snapThreshold) { newY = cy; snappedLines.push({ axis: 'y', pos: cy }); }
+
+                      // グリッドスナップ
+                      if (ui.showGrid && snappedLines.length === 0) {
+                        const nearGridX = Math.round(newX / grid) * grid;
+                        const nearGridY = Math.round(newY / grid) * grid;
+                        if (Math.abs(newX - nearGridX) < snapThreshold) { newX = nearGridX; snappedLines.push({ axis: 'x', pos: nearGridX }); }
+                        if (Math.abs(newY - nearGridY) < snapThreshold) { newY = nearGridY; snappedLines.push({ axis: 'y', pos: nearGridY }); }
+                      }
+                    }
+                    setSnapLines(snappedLines);
+
+                    const newPos: [number, number] = [newX, newY];
                     useLayerStore.getState().updateTransform(layer.id, 'position', newPos);
                   };
 
                   const onUp = () => {
                     document.body.style.cursor = '';
+                    setSnapLines([]);
                     window.removeEventListener('mousemove', onMove);
                     window.removeEventListener('mouseup', onUp);
                   };

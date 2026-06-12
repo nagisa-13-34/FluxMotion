@@ -211,6 +211,16 @@ export default function App() {
               }
             }
             break;
+          case "'":
+            e.preventDefault();
+            useUIStore.getState().toggleGrid();
+            break;
+          case ';':
+            if (e.shiftKey) {
+              e.preventDefault();
+              useUIStore.getState().toggleSnap();
+            }
+            break;
         }
         return;
       }
