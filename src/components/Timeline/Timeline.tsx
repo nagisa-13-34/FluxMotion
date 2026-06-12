@@ -213,14 +213,48 @@ export function Timeline() {
     };
   }, [clipDrag, zoom]);
 
-  // キーフレームドラッグ移動（複数選択対応）
+  // キーフレームドラッグ移動（複数選択対応 + スナップ）
   useEffect(() => {
     if (!kfDrag) return;
 
     const handleMove = (e: MouseEvent) => {
       const dx = e.clientX - kfDrag.startX;
-      const frameDelta = Math.round(dx / zoom);
-      const newTime = Math.max(0, kfDrag.origTime + frameDelta);
+      let frameDelta = Math.round(dx / zoom);
+      let newTime = Math.max(0, kfDrag.origTime + frameDelta);
+
+      // スナップ（Shiftで無効化）
+      if (!e.shiftKey) {
+        const snapThreshold = Math.max(1, Math.round(4 / zoom)); // 4px相当のフレーム数
+        const store = useLayerStore.getState();
+
+        // ドラッグ中のKF自身を除いた全KF時間を収集
+        const movingTimes = new Set(
+          (selectedKfs.length > 0 ? selectedKfs : [{ layerId: kfDrag.layerId, propName: kfDrag.propName, time: kfDrag.origTime }])
+            .map(s => s.time + frameDelta)
+        );
+        const allTimes: number[] = [currentFrame]; // 再生ヘッドにもスナップ
+        for (const [, propAnims] of Object.entries(store.animations)) {
+          for (const [, prop] of Object.entries(propAnims)) {
+            for (const kf of prop.keyframes) {
+              if (!movingTimes.has(kf.time)) allTimes.push(kf.time);
+            }
+          }
+        }
+
+        // 最も近いスナップ先を見つける
+        let bestSnap = newTime;
+        let bestDist = Infinity;
+        for (const t of allTimes) {
+          const dist = Math.abs(newTime - t);
+          if (dist < snapThreshold && dist < bestDist) {
+            bestSnap = t;
+            bestDist = dist;
+          }
+        }
+        newTime = bestSnap;
+        frameDelta = newTime - kfDrag.origTime;
+      }
+
       const actualDelta = newTime - kfDrag.origTime;
       if (actualDelta === (kfDrag.kfData.time - kfDrag.origTime)) return;
 
@@ -265,7 +299,7 @@ export function Timeline() {
       window.removeEventListener('mousemove', handleMove);
       window.removeEventListener('mouseup', handleUp);
     };
-  }, [kfDrag, zoom, setCurrentFrame, selectedKfs]);
+  }, [kfDrag, zoom, setCurrentFrame, selectedKfs, currentFrame]);
 
   // キーフレームクリップボード
   const [kfClipboard, setKfClipboard] = useState<{
