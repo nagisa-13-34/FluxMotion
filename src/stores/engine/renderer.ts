@@ -113,28 +113,17 @@ export class Renderer {
       this.applyBlendMode(ctx, layer);
 
       if (layer.motionBlur && !transform.directionalScale && !options?.disableMotionBlur) {
-        // モーションブラー: ガウス分布で重み付けした16サンプル合成
-        // シャッターアングル180°相当（前後0.5フレーム）
-        const shutterAngle = 0.5; // 0.5 = 180°
-        const numSamples = 16;
-
-        // ガウス分布の重みを事前計算（σ=0.35で端が自然にフェードアウト）
-        const sigma = 0.35;
-        const weights: number[] = [];
-        let totalWeight = 0;
-        for (let i = 0; i < numSamples; i++) {
-          const t = (i / (numSamples - 1)) * 2 - 1; // -1 ～ 1
-          const w = Math.exp(-(t * t) / (2 * sigma * sigma));
-          weights.push(w);
-          totalWeight += w;
-        }
+        // モーションブラー: ボックスフィルター（均等重み）でマルチサンプル合成
+        // 実カメラと同じ: シャッター開放中は均等に光を蓄積する
+        const shutterAngle = 0.5; // 前後0.5フレーム = シャッターアングル180°相当
+        const numSamples = 24;
+        const sampleAlpha = (transform.opacity / 100) / numSamples;
 
         for (let i = 0; i < numSamples; i++) {
           const t = (i / (numSamples - 1)) * 2 - 1; // -1 ～ 1
           const offset = t * shutterAngle;
           const sampleFrame = currentFrame + offset;
           const sampleTransform = this.resolveWorldTransform(layer, layers, sampleFrame, animations);
-          const sampleAlpha = (transform.opacity / 100) * (weights[i] / totalWeight);
           ctx.save();
           ctx.globalAlpha = sampleAlpha;
           this.applyTransformValues(ctx, sampleTransform);
