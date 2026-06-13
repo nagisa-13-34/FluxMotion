@@ -593,11 +593,24 @@ export const useLayerStore = create<LayerState>((set, get) => ({
     const avgY = selectedLayers.reduce((sum, l) => sum + l.transform.position[1], 0) / selectedLayers.length;
 
     // プリコンポ内のレイヤー: positionをプリコンポの中心からの相対座標に変換
-    const innerLayers: Layer[] = selectedLayers.map(l => ({
-      ...JSON.parse(JSON.stringify(l)),
+    const innerLayers: Layer[] = selectedLayers.map(l => {
+      const cloned = JSON.parse(JSON.stringify(l)) as Layer;
       // 親がプリコンポ内のレイヤーでない場合はparentIdをリセット
-      parentId: l.parentId && selectedIds.includes(l.parentId) ? l.parentId : null,
-    }));
+      if (cloned.parentId && !selectedIds.includes(cloned.parentId)) {
+        cloned.parentId = null;
+      }
+      // positionをプリコンポのanchorPoint（=中心）基準の相対座標に変換
+      // プリコンポのanchorPointはデフォルト[0,0]なので、
+      // 内部レイヤーのpositionは (元のpos - プリコンポのpos) + anchorPoint(0,0) となる
+      cloned.transform = {
+        ...cloned.transform,
+        position: [
+          cloned.transform.position[0] - Math.round(avgX),
+          cloned.transform.position[1] - Math.round(avgY),
+        ] as [number, number],
+      };
+      return cloned;
+    });
 
     // プリコンポレイヤーを作成
     const precompId = generateId();
