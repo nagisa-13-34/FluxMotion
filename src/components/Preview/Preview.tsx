@@ -629,7 +629,44 @@ export function Preview({ onRenderReady }: PreviewProps) {
                     setSnapLines(snappedLines);
 
                     const newPos: [number, number] = [newX, newY];
-                    useLayerStore.getState().updateTransform(layer.id, 'position', newPos);
+                    const store = useLayerStore.getState();
+                    store.updateTransform(layer.id, 'position', newPos);
+
+                    // KFが存在する場合、現在フレームのKF値も更新する
+                    const layerAnims = store.animations[layer.id];
+                    if (layerAnims) {
+                      const frame = useTimelineStore.getState().currentFrame;
+                      if (layerAnims['position']?.keyframes.length) {
+                        // 統合position KF
+                        const existingKf = layerAnims['position'].keyframes.find(k => k.time === frame);
+                        store.addKeyframe(layer.id, 'position', {
+                          time: frame,
+                          value: newPos,
+                          interpolation: existingKf?.interpolation ?? 'bezier',
+                          bezierPoints: existingKf?.bezierPoints,
+                        });
+                      } else {
+                        // 分割次元 (position.x / position.y)
+                        if (layerAnims['position.x']?.keyframes.length) {
+                          const existingKf = layerAnims['position.x'].keyframes.find(k => k.time === frame);
+                          store.addKeyframe(layer.id, 'position.x', {
+                            time: frame,
+                            value: newX,
+                            interpolation: existingKf?.interpolation ?? 'bezier',
+                            bezierPoints: existingKf?.bezierPoints,
+                          });
+                        }
+                        if (layerAnims['position.y']?.keyframes.length) {
+                          const existingKf = layerAnims['position.y'].keyframes.find(k => k.time === frame);
+                          store.addKeyframe(layer.id, 'position.y', {
+                            time: frame,
+                            value: newY,
+                            interpolation: existingKf?.interpolation ?? 'bezier',
+                            bezierPoints: existingKf?.bezierPoints,
+                          });
+                        }
+                      }
+                    }
                   };
 
                   const onUp = () => {
@@ -647,22 +684,7 @@ export function Preview({ onRenderReady }: PreviewProps) {
                   if (!isNullLayer) startTextEdit(layer);
                 }}
               >
-                {/* Nullレイヤー: 十字ターゲットマーク */}
-                {isNullLayer && (
-                  <svg
-                    style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
-                    viewBox={`0 0 ${w} ${h}`}
-                  >
-                    {/* 横線 */}
-                    <line x1={0} y1={h / 2} x2={w} y2={h / 2}
-                      stroke={isSelected ? 'var(--color-accent)' : 'rgba(255,255,255,0.4)'}
-                      strokeWidth="1" strokeDasharray="4 3" />
-                    {/* 縦線 */}
-                    <line x1={w / 2} y1={0} x2={w / 2} y2={h}
-                      stroke={isSelected ? 'var(--color-accent)' : 'rgba(255,255,255,0.4)'}
-                      strokeWidth="1" strokeDasharray="4 3" />
-                  </svg>
-                )}
+
                 {/* リサイズハンドル（選択中のみ） */}
                 {isSelected && !isEditing && !layer.locked && (() => {
                   const handleSize = 8;
@@ -740,9 +762,43 @@ export function Preview({ onRenderReady }: PreviewProps) {
                             ? Math.max(5, Math.round((origScale[1] * (1 + scaleFactorY)) * 10) / 10)
                             : origScale[1];
 
-                          useLayerStore.getState().updateTransform(
-                            layer.id, 'scale', [newScaleX, newScaleY]
-                          );
+                          const newScale: [number, number] = [newScaleX, newScaleY];
+                          const store = useLayerStore.getState();
+                          store.updateTransform(layer.id, 'scale', newScale);
+
+                          // KFが存在する場合、現在フレームのKF値も更新する
+                          const layerAnims = store.animations[layer.id];
+                          if (layerAnims) {
+                            const frame = useTimelineStore.getState().currentFrame;
+                            if (layerAnims['scale']?.keyframes.length) {
+                              const existingKf = layerAnims['scale'].keyframes.find(k => k.time === frame);
+                              store.addKeyframe(layer.id, 'scale', {
+                                time: frame,
+                                value: newScale,
+                                interpolation: existingKf?.interpolation ?? 'bezier',
+                                bezierPoints: existingKf?.bezierPoints,
+                              });
+                            } else {
+                              if (layerAnims['scale.x']?.keyframes.length) {
+                                const existingKf = layerAnims['scale.x'].keyframes.find(k => k.time === frame);
+                                store.addKeyframe(layer.id, 'scale.x', {
+                                  time: frame,
+                                  value: newScaleX,
+                                  interpolation: existingKf?.interpolation ?? 'bezier',
+                                  bezierPoints: existingKf?.bezierPoints,
+                                });
+                              }
+                              if (layerAnims['scale.y']?.keyframes.length) {
+                                const existingKf = layerAnims['scale.y'].keyframes.find(k => k.time === frame);
+                                store.addKeyframe(layer.id, 'scale.y', {
+                                  time: frame,
+                                  value: newScaleY,
+                                  interpolation: existingKf?.interpolation ?? 'bezier',
+                                  bezierPoints: existingKf?.bezierPoints,
+                                });
+                              }
+                            }
+                          }
                         };
 
                         const onResizeUp = () => {

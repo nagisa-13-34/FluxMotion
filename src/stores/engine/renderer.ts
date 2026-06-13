@@ -98,6 +98,10 @@ export class Renderer {
           case 'precomp':
             this.renderPrecomp(ctx, layer, currentFrame, animations, layers);
             break;
+          case 'null':
+          case 'adjustment':
+            // ヌル・調整レイヤーは描画コンテンツなし
+            break;
           default:
             this.renderPlaceholder(ctx, layer);
             break;
