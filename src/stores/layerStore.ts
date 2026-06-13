@@ -32,6 +32,8 @@ interface LayerState {
   selectedLayerIds: string[];
   /** アニメーションデータ */
   animations: AnimationMap;
+  /** クリップボード（コピー／ペースト用） */
+  clipboard: { layers: Layer[]; animations: AnimationMap } | null;
   /** プリコンポナビゲーションスタック */
   compStack: CompStackEntry[];
 
@@ -147,13 +149,11 @@ function deepCloneLayer(layer: Layer): Layer {
   return cloned;
 }
 
-/** クリップボード（モジュールレベル） */
-let clipboard: { layers: Layer[]; animations: AnimationMap } | null = null;
-
 export const useLayerStore = create<LayerState>((set, get) => ({
   layers: [],
   selectedLayerIds: [],
   animations: {},
+  clipboard: null,
   compStack: [],
   activeCompName: null,
 
@@ -555,10 +555,12 @@ export const useLayerStore = create<LayerState>((set, get) => ({
     for (const id of selectedLayerIds) {
       if (animations[id]) copiedAnims[id] = JSON.parse(JSON.stringify(animations[id]));
     }
-    clipboard = {
-      layers: JSON.parse(JSON.stringify(copied)),
-      animations: copiedAnims,
-    };
+    set({
+      clipboard: {
+        layers: JSON.parse(JSON.stringify(copied)),
+        animations: copiedAnims,
+      },
+    });
   },
 
   cutLayers: () => {
@@ -567,6 +569,7 @@ export const useLayerStore = create<LayerState>((set, get) => ({
   },
 
   pasteLayers: () => {
+    const { clipboard } = get();
     if (!clipboard || clipboard.layers.length === 0) return;
     get().saveSnapshot();
     const newIds: string[] = [];

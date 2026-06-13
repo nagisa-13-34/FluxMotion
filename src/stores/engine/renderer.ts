@@ -35,7 +35,8 @@ export class Renderer {
     const dpr = window.devicePixelRatio || 1;
     this.canvas.width = width * dpr;
     this.canvas.height = height * dpr;
-    this.ctx.scale(dpr, dpr);
+    // setTransformでリセットしてからスケールを適用（累積防止）
+    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
 
   /** 背景色設定 */
@@ -709,9 +710,10 @@ export class Renderer {
       this.mediaCache.set(src, video);
     }
 
-    // フレーム位置にシーク
+    // フレーム位置にシーク（閾値: ハーフフレーム精度）
     const time = (frame - layer.inPoint) / this._fps;
-    if (Math.abs(video.currentTime - time) > 0.05) {
+    const seekThreshold = 0.5 / this._fps; // ハーフフレーム精度
+    if (Math.abs(video.currentTime - time) > seekThreshold) {
       video.currentTime = Math.max(0, time);
     }
 

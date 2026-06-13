@@ -27,12 +27,17 @@ export interface ExpressionContext {
   propertyName: string;
 }
 
-/** 循環参照防止用の評価スタック */
+/**
+ * 循環参照防止用の再帰深度カウンター
+ * 同期実行を前提としており、try/finallyで確実にデクリメントされる。
+ * 将来Web Worker化する場合は、Worker単位のカウンターに変更すること。
+ */
 let evaluationDepth = 0;
 const MAX_EVAL_DEPTH = 10;
 
-/** コンパイル済みエクスプレッションのキャッシュ */
+/** コンパイル済みエクスプレッションのキャッシュ（サイズ上限付き） */
 const compiledCache = new Map<string, (sandbox: Record<string, unknown>) => unknown>();
+const MAX_CACHE_SIZE = 128;
 
 /**
  * エクスプレッションを評価して値を返す
@@ -116,6 +121,11 @@ function compileExpression(expr: string): (sandbox: Record<string, unknown>) => 
     return fn(proxy);
   };
 
+  // キャッシュ上限超過時、最古のエントリを削除（簡易LRU）
+  if (compiledCache.size >= MAX_CACHE_SIZE) {
+    const oldest = compiledCache.keys().next().value;
+    if (oldest !== undefined) compiledCache.delete(oldest);
+  }
   compiledCache.set(trimmed, safeFn);
   return safeFn;
 }

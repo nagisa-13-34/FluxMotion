@@ -1,6 +1,12 @@
 /**
  * Undo/Redo 履歴管理
  * zustand ストアのスナップショットベースで実装
+ *
+ * 設計メモ:
+ * - スナップショットは layers と animations のみ保存
+ * - compStack（プリコンポナビゲーション状態）は保存しない
+ * - layerStore.undo/redo は呼び出し前に exitToRoot() を実行し、
+ *   常にルートコンポレベルで Undo/Redo を行う
  */
 import type { Layer } from '../types/layer';
 import type { AnimatedProperty } from '../types/keyframe';
