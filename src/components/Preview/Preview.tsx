@@ -466,8 +466,8 @@ export function Preview({ onRenderReady }: PreviewProps) {
             );
           })()}
 
-          {/* レイヤーオーバーレイ */}
-          {visibleLayers.map((layer) => {
+          {/* レイヤーオーバーレイ（背面から前面へ描画するためリバース） */}
+          {[...visibleLayers].reverse().map((layer) => {
             if (layer.type === 'adjustment') return null;
 
             const resolved = resolveOverlayTransform(layer);
@@ -507,22 +507,23 @@ export function Preview({ onRenderReady }: PreviewProps) {
                       : '1px solid rgba(255, 255, 255, 0.25)'),
                   borderRadius: isNullLayer ? 0 : 6,
                   boxSizing: 'border-box',
-                  pointerEvents: 'auto',
+                  pointerEvents: layer.locked ? 'none' : 'auto',
                   transition: 'border-color 0.15s',
                   transform: resolved.rotation !== 0 ? `rotate(${resolved.rotation}deg)` : undefined,
                   transformOrigin: `${-xOffset}px ${h / 2}px`,
-                }}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (!isEditing) {
-                    useLayerStore.getState().selectLayer(layer.id, e.ctrlKey || e.metaKey);
-                  }
                 }}
                 onMouseDown={(e) => {
                   if (e.button !== 0 || isEditing || layer.locked) return;
                   e.stopPropagation();
                   e.preventDefault();
-                  useLayerStore.getState().selectLayer(layer.id, e.ctrlKey || e.metaKey);
+                  
+                  const store = useLayerStore.getState();
+                  const alreadySelected = store.selectedLayerIds.includes(layer.id);
+                  
+                  // 未選択の場合は即座に選択
+                  if (!alreadySelected) {
+                    store.selectLayer(layer.id, e.ctrlKey || e.metaKey);
+                  }
 
                   const startX = e.clientX;
                   const startY = e.clientY;
@@ -533,7 +534,7 @@ export function Preview({ onRenderReady }: PreviewProps) {
                   const onMove = (me: MouseEvent) => {
                     const dx = (me.clientX - startX) / scale;
                     const dy = (me.clientY - startY) / scale;
-                    if (!moved && (Math.abs(dx) > 1 || Math.abs(dy) > 1)) {
+                    if (!moved && (Math.abs(dx) > 2 || Math.abs(dy) > 2)) {
                       moved = true;
                       useLayerStore.getState().saveSnapshot();
                     }
@@ -605,11 +606,16 @@ export function Preview({ onRenderReady }: PreviewProps) {
                     }
                   };
 
-                  const onUp = () => {
+                  const onUp = (me: MouseEvent) => {
                     document.body.style.cursor = '';
                     setSnapLines([]);
                     window.removeEventListener('mousemove', onMove);
                     window.removeEventListener('mouseup', onUp);
+
+                    // ドラッグしなかった場合、かつ単一選択にしたい場合（Ctrl/Metaなし）
+                    if (!moved && alreadySelected && !e.ctrlKey && !e.metaKey) {
+                      store.selectLayer(layer.id, false);
+                    }
                   };
 
                   window.addEventListener('mousemove', onMove);

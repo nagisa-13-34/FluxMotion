@@ -204,10 +204,21 @@ export const useLayerStore = create<LayerState>((set, get) => ({
       } : {}),
       ...options,
     };
-    set((s) => ({
-      layers: [newLayer, ...s.layers],
-      selectedLayerIds: [id],
-    }));
+    set((s) => {
+      let insertIndex = 0; // デフォルトは先頭（最前面）
+      if (s.selectedLayerIds.length > 0) {
+        const topSelectedId = s.selectedLayerIds[0];
+        const idx = s.layers.findIndex((l) => l.id === topSelectedId);
+        if (idx !== -1) insertIndex = idx;
+      }
+      const newLayers = [...s.layers];
+      newLayers.splice(insertIndex, 0, newLayer);
+      
+      return {
+        layers: newLayers,
+        selectedLayerIds: [id],
+      };
+    });
     return id;
   },
 
