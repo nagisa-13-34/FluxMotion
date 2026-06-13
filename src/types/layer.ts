@@ -1,5 +1,5 @@
 /** レイヤーの種類 */
-export type LayerType = 'solid' | 'text' | 'image' | 'video' | 'shape' | 'adjustment' | 'null';
+export type LayerType = 'solid' | 'text' | 'image' | 'video' | 'shape' | 'adjustment' | 'null' | 'precomp';
 
 /** シェイプの種類 */
 export type ShapeType = 'rectangle' | 'ellipse' | 'star' | 'path';
@@ -93,6 +93,8 @@ export interface Layer {
   labelColor?: string;
   /** モーションブラー有効 */
   motionBlur?: boolean;
+  /** プリコンポジション内のレイヤー（precompタイプのみ） */
+  precompLayers?: Layer[];
 }
 
 /** デフォルトのトランスフォーム */

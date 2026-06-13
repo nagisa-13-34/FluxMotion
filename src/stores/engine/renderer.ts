@@ -95,6 +95,9 @@ export class Renderer {
           case 'video':
             this.renderVideo(ctx, layer, currentFrame);
             break;
+          case 'precomp':
+            this.renderPrecomp(ctx, layer, currentFrame, animations, layers);
+            break;
           default:
             this.renderPlaceholder(ctx, layer);
             break;
@@ -105,12 +108,28 @@ export class Renderer {
       this.applyBlendMode(ctx, layer);
 
       if (layer.motionBlur && !transform.directionalScale) {
-        // モーションブラー: 5サンプルで前後フレームを半透明合成
-        const samples = [-1, -0.5, 0, 0.5, 1];
-        const sampleAlpha = (transform.opacity / 100) / samples.length;
-        for (const offset of samples) {
+        // モーションブラー: ガウス分布で重み付けした16サンプル合成
+        // シャッターアングル180°相当（前後0.5フレーム）
+        const shutterAngle = 0.5; // 0.5 = 180°
+        const numSamples = 16;
+
+        // ガウス分布の重みを事前計算（σ=0.35で端が自然にフェードアウト）
+        const sigma = 0.35;
+        const weights: number[] = [];
+        let totalWeight = 0;
+        for (let i = 0; i < numSamples; i++) {
+          const t = (i / (numSamples - 1)) * 2 - 1; // -1 ～ 1
+          const w = Math.exp(-(t * t) / (2 * sigma * sigma));
+          weights.push(w);
+          totalWeight += w;
+        }
+
+        for (let i = 0; i < numSamples; i++) {
+          const t = (i / (numSamples - 1)) * 2 - 1; // -1 ～ 1
+          const offset = t * shutterAngle;
           const sampleFrame = currentFrame + offset;
           const sampleTransform = this.resolveWorldTransform(layer, layers, sampleFrame, animations);
+          const sampleAlpha = (transform.opacity / 100) * (weights[i] / totalWeight);
           ctx.save();
           ctx.globalAlpha = sampleAlpha;
           this.applyTransformValues(ctx, sampleTransform);
@@ -680,6 +699,67 @@ export class Renderer {
       ctx.drawImage(video, -w / 2, -h / 2, w, h);
     } else {
       this.renderPlaceholder(ctx, layer);
+    }
+  }
+
+  /** プリコンポジション描画（内部レイヤーを再帰的に描画） */
+  private renderPrecomp(
+    ctx: CanvasRenderingContext2D,
+    layer: Layer,
+    currentFrame: number,
+    animations?: Record<string, Record<string, AnimatedProperty>>,
+    allLayers?: Layer[],
+  ) {
+    if (!layer.precompLayers || layer.precompLayers.length === 0) {
+      this.renderPlaceholder(ctx, layer);
+      return;
+    }
+
+    const innerLayers = layer.precompLayers;
+    const hasSoloLayer = innerLayers.some(l => l.solo);
+
+    // 背面から前面に向かって描画
+    for (let i = innerLayers.length - 1; i >= 0; i--) {
+      const innerLayer = innerLayers[i];
+      if (!innerLayer.visible) continue;
+      if (hasSoloLayer && !innerLayer.solo) continue;
+      if (currentFrame < innerLayer.inPoint || currentFrame > innerLayer.outPoint) continue;
+
+      // 内部レイヤーのトランスフォームを解決
+      const innerTransform = this.resolveWorldTransform(innerLayer, innerLayers, currentFrame, animations);
+
+      const renderInnerContent = () => {
+        switch (innerLayer.type) {
+          case 'solid':
+            this.renderSolid(ctx, innerLayer);
+            break;
+          case 'text':
+            this.renderText(ctx, innerLayer, currentFrame, animations);
+            break;
+          case 'shape':
+            this.renderShape(ctx, innerLayer, currentFrame, animations);
+            break;
+          case 'image':
+            this.renderImage(ctx, innerLayer);
+            break;
+          case 'video':
+            this.renderVideo(ctx, innerLayer, currentFrame);
+            break;
+          case 'precomp':
+            this.renderPrecomp(ctx, innerLayer, currentFrame, animations, allLayers);
+            break;
+          default:
+            this.renderPlaceholder(ctx, innerLayer);
+            break;
+        }
+      };
+
+      ctx.save();
+      this.applyBlendMode(ctx, innerLayer);
+      ctx.globalAlpha *= innerTransform.opacity / 100;
+      this.applyTransformValues(ctx, innerTransform);
+      renderInnerContent();
+      ctx.restore();
     }
   }
 

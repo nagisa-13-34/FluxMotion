@@ -297,6 +297,10 @@ export function Preview({ onRenderReady }: PreviewProps) {
       case 'video':
         // メディアレイヤーはデフォルトでコンポジションサイズを使用
         return [settings.width, settings.height];
+      case 'null':
+        return [100, 100]; // AEのNull: 100×100px
+      case 'precomp':
+        return [settings.width, settings.height];
       default:
         return [200, 100];
     }
@@ -528,7 +532,7 @@ export function Preview({ onRenderReady }: PreviewProps) {
 
           {/* レイヤーオーバーレイ */}
           {visibleLayers.map((layer) => {
-            if (layer.type === 'null' || layer.type === 'adjustment') return null;
+            if (layer.type === 'adjustment') return null;
 
             const resolved = resolveOverlayTransform(layer);
             const sx = resolved.scale[0] / 100;
@@ -547,6 +551,9 @@ export function Preview({ onRenderReady }: PreviewProps) {
             const isSelected = selectedLayerIds.includes(layer.id);
             const isEditing = editingLayerId === layer.id;
 
+            // Nullレイヤー: 枠線+十字ターゲットのみ表示
+            const isNullLayer = layer.type === 'null';
+
             return (
               <div
                 key={layer.id}
@@ -557,10 +564,12 @@ export function Preview({ onRenderReady }: PreviewProps) {
                   width: w,
                   height: h,
                   cursor: isEditing ? 'text' : (layer.locked ? 'default' : 'move'),
-                  border: isSelected
-                    ? '1.5px solid var(--color-accent)'
-                    : '1px solid rgba(255, 255, 255, 0.25)',
-                  borderRadius: 6,
+                  border: isNullLayer
+                    ? (isSelected ? '1.5px dashed var(--color-accent)' : '1.5px dashed rgba(255, 255, 255, 0.4)')
+                    : (isSelected
+                      ? '1.5px solid var(--color-accent)'
+                      : '1px solid rgba(255, 255, 255, 0.25)'),
+                  borderRadius: isNullLayer ? 0 : 6,
                   boxSizing: 'border-box',
                   pointerEvents: 'auto',
                   transition: 'border-color 0.15s',
@@ -635,9 +644,25 @@ export function Preview({ onRenderReady }: PreviewProps) {
                 }}
                 onDoubleClick={(e) => {
                   e.stopPropagation();
-                  startTextEdit(layer);
+                  if (!isNullLayer) startTextEdit(layer);
                 }}
               >
+                {/* Nullレイヤー: 十字ターゲットマーク */}
+                {isNullLayer && (
+                  <svg
+                    style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
+                    viewBox={`0 0 ${w} ${h}`}
+                  >
+                    {/* 横線 */}
+                    <line x1={0} y1={h / 2} x2={w} y2={h / 2}
+                      stroke={isSelected ? 'var(--color-accent)' : 'rgba(255,255,255,0.4)'}
+                      strokeWidth="1" strokeDasharray="4 3" />
+                    {/* 縦線 */}
+                    <line x1={w / 2} y1={0} x2={w / 2} y2={h}
+                      stroke={isSelected ? 'var(--color-accent)' : 'rgba(255,255,255,0.4)'}
+                      strokeWidth="1" strokeDasharray="4 3" />
+                  </svg>
+                )}
                 {/* リサイズハンドル（選択中のみ） */}
                 {isSelected && !isEditing && !layer.locked && (() => {
                   const handleSize = 8;
@@ -689,13 +714,29 @@ export function Preview({ onRenderReady }: PreviewProps) {
                           if (!resized) return;
 
                           // スケールベースのリサイズ
-                          const scaleFactorX = handle.sx !== 0 ? (pixDX * handle.sx) / (w / 2) : 0;
-                          const scaleFactorY = handle.sy !== 0 ? (pixDY * handle.sy) / (h / 2) : 0;
+                          let scaleFactorX = handle.sx !== 0 ? (pixDX * handle.sx) / (w / 2) : 0;
+                          let scaleFactorY = handle.sy !== 0 ? (pixDY * handle.sy) / (h / 2) : 0;
 
-                          const newScaleX = handle.sx !== 0
+                          // Alt押下で比率維持
+                          if (me.altKey) {
+                            if (handle.sx !== 0 && handle.sy !== 0) {
+                              // 角ハンドル: 大きい方に統一
+                              const unified = Math.abs(scaleFactorX) > Math.abs(scaleFactorY) ? scaleFactorX : scaleFactorY;
+                              scaleFactorX = unified;
+                              scaleFactorY = unified;
+                            } else if (handle.sx !== 0) {
+                              // 横ハンドル: X変化量をYにもコピー
+                              scaleFactorY = scaleFactorX;
+                            } else {
+                              // 縦ハンドル: Y変化量をXにもコピー
+                              scaleFactorX = scaleFactorY;
+                            }
+                          }
+
+                          const newScaleX = (handle.sx !== 0 || me.altKey)
                             ? Math.max(5, Math.round((origScale[0] * (1 + scaleFactorX)) * 10) / 10)
                             : origScale[0];
-                          const newScaleY = handle.sy !== 0
+                          const newScaleY = (handle.sy !== 0 || me.altKey)
                             ? Math.max(5, Math.round((origScale[1] * (1 + scaleFactorY)) * 10) / 10)
                             : origScale[1];
 

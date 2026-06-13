@@ -78,6 +78,7 @@ function getLayerName(type: Layer['type'], index: number): string {
     shape: 'シェイプ',
     adjustment: '調整',
     null: 'ヌル',
+    precomp: 'プリコンポ',
   };
   return `${names[type] || type} ${index + 1}`;
 }
@@ -92,6 +93,7 @@ function getLayerColor(type: Layer['type']): string {
     shape: '#A29BFE',
     adjustment: '#FD79A8',
     null: '#636E72',
+    precomp: '#0984E3',
   };
   return colors[type] || '#636E72';
 }
@@ -580,17 +582,29 @@ export const useLayerStore = create<LayerState>((set, get) => ({
     const selectedIds = state.selectedLayerIds;
     if (selectedIds.length === 0) return;
 
-    // ヌルレイヤーを作成
-    const nullId = generateId();
-    // 選択レイヤーの中央位置を計算
+    get().saveSnapshot();
+
+    // 選択レイヤーを取得（レイヤーリストの順序を維持）
     const selectedLayers = state.layers.filter(l => selectedIds.includes(l.id));
+    if (selectedLayers.length === 0) return;
+
+    // 選択レイヤーの中央位置を計算
     const avgX = selectedLayers.reduce((sum, l) => sum + l.transform.position[0], 0) / selectedLayers.length;
     const avgY = selectedLayers.reduce((sum, l) => sum + l.transform.position[1], 0) / selectedLayers.length;
 
-    const nullLayer: Layer = {
-      id: nullId,
-      name: `ヌル ${state.layers.filter(l => l.type === 'null').length + 1}`,
-      type: 'null',
+    // プリコンポ内のレイヤー: positionをプリコンポの中心からの相対座標に変換
+    const innerLayers: Layer[] = selectedLayers.map(l => ({
+      ...JSON.parse(JSON.stringify(l)),
+      // 親がプリコンポ内のレイヤーでない場合はparentIdをリセット
+      parentId: l.parentId && selectedIds.includes(l.parentId) ? l.parentId : null,
+    }));
+
+    // プリコンポレイヤーを作成
+    const precompId = generateId();
+    const precompLayer: Layer = {
+      id: precompId,
+      name: `プリコンポ ${state.layers.filter(l => l.type === 'precomp').length + 1}`,
+      type: 'precomp',
       visible: true,
       locked: false,
       solo: false,
@@ -599,19 +613,24 @@ export const useLayerStore = create<LayerState>((set, get) => ({
       transform: { ...createDefaultTransform(), position: [Math.round(avgX), Math.round(avgY)] },
       blendMode: 'normal',
       parentId: null,
+      precompLayers: innerLayers,
     };
 
-    // 選択レイヤーの親をヌルに設定
-    const updatedLayers = state.layers.map(l =>
-      selectedIds.includes(l.id) ? { ...l, parentId: nullId } : l
+    // 選択レイヤーのアニメーションも移動（今は保持するだけ）
+    // 元のレイヤーリストから選択レイヤーを除去し、プリコンプレイヤーで置換
+    const firstSelectedIdx = state.layers.findIndex(l => selectedIds.includes(l.id));
+    const remainingLayers = state.layers.filter(l => !selectedIds.includes(l.id));
+    // 選択レイヤーを親に持つ子のparentIdをリセット
+    const updatedLayers = remainingLayers.map(l =>
+      l.parentId && selectedIds.includes(l.parentId) ? { ...l, parentId: null } : l
     );
 
-    // ヌルを選択レイヤーの一番上に挿入
-    const firstSelectedIdx = updatedLayers.findIndex(l => selectedIds.includes(l.id));
+    // プリコンポレイヤーを元の最初の選択レイヤーの位置に挿入
+    const insertIdx = Math.min(firstSelectedIdx, updatedLayers.length);
     const newLayers = [...updatedLayers];
-    newLayers.splice(firstSelectedIdx, 0, nullLayer);
+    newLayers.splice(insertIdx, 0, precompLayer);
 
-    set({ layers: newLayers, selectedLayerIds: [nullId] });
+    set({ layers: newLayers, selectedLayerIds: [precompId] });
   },
 
   setLabelColor: (id, color) => {
