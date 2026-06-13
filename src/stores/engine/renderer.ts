@@ -52,6 +52,7 @@ export class Renderer {
     layers: Layer[],
     currentFrame: number,
     animations?: Record<string, Record<string, AnimatedProperty>>,
+    options?: { disableMotionBlur?: boolean },
   ) {
     const ctx = this.ctx;
 
@@ -111,7 +112,7 @@ export class Renderer {
       ctx.save();
       this.applyBlendMode(ctx, layer);
 
-      if (layer.motionBlur && !transform.directionalScale) {
+      if (layer.motionBlur && !transform.directionalScale && !options?.disableMotionBlur) {
         // モーションブラー: ガウス分布で重み付けした16サンプル合成
         // シャッターアングル180°相当（前後0.5フレーム）
         const shutterAngle = 0.5; // 0.5 = 180°
