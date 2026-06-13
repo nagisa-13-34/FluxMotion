@@ -8,6 +8,20 @@ import { interpolateValue } from './engine/keyframe';
 /** レイヤーごとのアニメーションデータ */
 type AnimationMap = Record<string, Record<string, AnimatedProperty>>;
 
+/** プリコンポナビゲーションのスタックエントリ */
+interface CompStackEntry {
+  /** プリコンポレイヤーのID */
+  precompLayerId: string;
+  /** プリコンポレイヤーの名前 */
+  precompName: string;
+  /** 保存されたルートレイヤー */
+  savedLayers: Layer[];
+  /** 保存された選択 */
+  savedSelectedIds: string[];
+  /** 保存されたアニメーション */
+  savedAnimations: AnimationMap;
+}
+
 interface LayerState {
   /** レイヤー一覧（上が前面） */
   layers: Layer[];
@@ -15,6 +29,8 @@ interface LayerState {
   selectedLayerIds: string[];
   /** アニメーションデータ */
   animations: AnimationMap;
+  /** プリコンポナビゲーションスタック */
+  compStack: CompStackEntry[];
 
   // -- レイヤー操作 --
   addLayer: (type: Layer['type'], options?: Partial<Layer>) => string;
@@ -62,6 +78,16 @@ interface LayerState {
   /** ラベルカラーを設定 */
   setLabelColor: (id: string, color: string) => void;
 
+  // -- プリコンポナビゲーション --
+  /** プリコンポの中に入る */
+  enterPrecomp: (layerId: string) => void;
+  /** プリコンポから出る（1段階戻る） */
+  exitPrecomp: () => void;
+  /** ルートに直接戻る */
+  exitToRoot: () => void;
+  /** 現在のコンポ名（ルートの場合はnull） */
+  activeCompName: string | null;
+
   // -- Undo/Redo --
   saveSnapshot: () => void;
   undo: () => void;
@@ -105,6 +131,8 @@ export const useLayerStore = create<LayerState>((set, get) => ({
   layers: [],
   selectedLayerIds: [],
   animations: {},
+  compStack: [],
+  activeCompName: null,
 
   addLayer: (type, options = {}) => {
     const id = generateId();
@@ -650,6 +678,88 @@ export const useLayerStore = create<LayerState>((set, get) => ({
     set((s) => ({
       layers: s.layers.map(l => l.id === id ? { ...l, labelColor: color } : l),
     }));
+  },
+
+  // -- プリコンポナビゲーション --
+  enterPrecomp: (layerId) => {
+    const state = get();
+    const precompLayer = state.layers.find(l => l.id === layerId);
+    if (!precompLayer || precompLayer.type !== 'precomp' || !precompLayer.precompLayers) return;
+
+    // 現在の状態をスタックに保存
+    const entry: CompStackEntry = {
+      precompLayerId: layerId,
+      precompName: precompLayer.name,
+      savedLayers: structuredClone(state.layers),
+      savedSelectedIds: [...state.selectedLayerIds],
+      savedAnimations: structuredClone(state.animations),
+    };
+
+    set({
+      compStack: [...state.compStack, entry],
+      layers: structuredClone(precompLayer.precompLayers),
+      selectedLayerIds: [],
+      activeCompName: precompLayer.name,
+    });
+  },
+
+  exitPrecomp: () => {
+    const state = get();
+    if (state.compStack.length === 0) return;
+
+    const entry = state.compStack[state.compStack.length - 1];
+    const newStack = state.compStack.slice(0, -1);
+
+    // 現在のレイヤーをプリコンポの内部レイヤーに保存
+    const updatedLayers = entry.savedLayers.map(l => {
+      if (l.id === entry.precompLayerId) {
+        return { ...l, precompLayers: structuredClone(state.layers) };
+      }
+      return l;
+    });
+
+    set({
+      compStack: newStack,
+      layers: updatedLayers,
+      selectedLayerIds: entry.savedSelectedIds,
+      animations: entry.savedAnimations,
+      activeCompName: newStack.length > 0 ? newStack[newStack.length - 1].precompName : null,
+    });
+  },
+
+  exitToRoot: () => {
+    const state = get();
+    if (state.compStack.length === 0) return;
+
+    // 最後のエントリから順にレイヤーを復元
+    let currentLayers = structuredClone(state.layers);
+    let rootLayers: Layer[] = [];
+    let rootSelected: string[] = [];
+    let rootAnimations: AnimationMap = {};
+
+    for (let i = state.compStack.length - 1; i >= 0; i--) {
+      const entry = state.compStack[i];
+      const updatedLayers = entry.savedLayers.map(l => {
+        if (l.id === entry.precompLayerId) {
+          return { ...l, precompLayers: currentLayers };
+        }
+        return l;
+      });
+      currentLayers = updatedLayers;
+      if (i === 0) {
+        rootLayers = updatedLayers;
+        rootSelected = entry.savedSelectedIds;
+        rootAnimations = entry.savedAnimations;
+      }
+    }
+
+    set({
+      compStack: [],
+      layers: rootLayers,
+      selectedLayerIds: rootSelected,
+      animations: rootAnimations,
+      activeCompName: null,
+    });
   },
 }));
 

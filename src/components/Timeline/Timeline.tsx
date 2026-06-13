@@ -16,6 +16,11 @@ export function Timeline() {
   const addKeyframe = useLayerStore((s) => s.addKeyframe);
   const removeKeyframe = useLayerStore((s) => s.removeKeyframe);
   const animations = useLayerStore((s) => s.animations);
+  const enterPrecomp = useLayerStore((s) => s.enterPrecomp);
+  const exitPrecomp = useLayerStore((s) => s.exitPrecomp);
+  const exitToRoot = useLayerStore((s) => s.exitToRoot);
+  const compStack = useLayerStore((s) => s.compStack);
+  const activeCompName = useLayerStore((s) => s.activeCompName);
 
   const expandedLayerIds = useUIStore((s) => s.expandedLayerIds);
   const toggleExpandLayer = useUIStore((s) => s.toggleExpandLayer);
@@ -631,6 +636,35 @@ export function Timeline() {
           </svg>
           タイムライン
         </span>
+        {/* プリコンポ パンくずリスト */}
+        {compStack.length > 0 && (
+          <div className="comp-breadcrumb">
+            <button
+              className="breadcrumb-item breadcrumb-root"
+              onClick={() => exitToRoot()}
+              title="ルートに戻る"
+            >
+              ルート
+            </button>
+            {compStack.map((entry, i) => (
+              <React.Fragment key={entry.precompLayerId}>
+                <span className="breadcrumb-sep">›</span>
+                <button
+                  className={`breadcrumb-item${i === compStack.length - 1 ? ' breadcrumb-active' : ''}`}
+                  onClick={() => {
+                    // この段階まで戻る
+                    const stepsBack = compStack.length - 1 - i;
+                    for (let j = 0; j < stepsBack; j++) {
+                      useLayerStore.getState().exitPrecomp();
+                    }
+                  }}
+                >
+                  {entry.precompName}
+                </button>
+              </React.Fragment>
+            ))}
+          </div>
+        )}
         <div className="timeline-header-spacer" />
         <div className="add-layer-area">
           <button className="add-layer-btn" onClick={() => handleAddLayerWithSnapshot('solid')}>
@@ -756,9 +790,15 @@ export function Timeline() {
                   )}
                 </button>
                 <span
-                  className="layer-name"
+                  className={`layer-name${layer.type === 'precomp' ? ' precomp-name' : ''}`}
                   onMouseDown={(e) => handleLayerReorderStart(e, idx)}
-                  style={{ cursor: 'grab' }}
+                  onDoubleClick={(e) => {
+                    e.stopPropagation();
+                    if (layer.type === 'precomp') {
+                      enterPrecomp(layer.id);
+                    }
+                  }}
+                  style={{ cursor: layer.type === 'precomp' ? 'pointer' : 'grab' }}
                 >
                   {layer.name}
                   {layer.parentId && (
