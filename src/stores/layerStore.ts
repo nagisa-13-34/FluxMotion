@@ -3,6 +3,7 @@ import type { Layer, BlendMode } from '../types/layer';
 import type { Keyframe, AnimatedProperty } from '../types/keyframe';
 import { createDefaultTransform, generateId } from '../types/layer';
 import { useHistoryStore } from './historyStore';
+import { useProjectStore } from './projectStore';
 import { interpolateValue } from './engine/keyframe';
 
 /** レイヤーごとのアニメーションデータ */
@@ -126,6 +127,26 @@ function getLayerColor(type: Layer['type']): string {
   return colors[type] || '#636E72';
 }
 
+/** レイヤーのディープクローン（precompLayers内のIDも再生成） */
+function deepCloneLayer(layer: Layer): Layer {
+  const cloned = JSON.parse(JSON.stringify(layer)) as Layer;
+  // precompLayersがある場合、内部レイヤーのIDも再生成
+  if (cloned.precompLayers) {
+    const idMap: Record<string, string> = {};
+    cloned.precompLayers = cloned.precompLayers.map(inner => {
+      const newInnerId = generateId();
+      idMap[inner.id] = newInnerId;
+      return { ...inner, id: newInnerId };
+    });
+    // 内部の親子関係も更新
+    cloned.precompLayers = cloned.precompLayers.map(inner => ({
+      ...inner,
+      parentId: inner.parentId && idMap[inner.parentId] ? idMap[inner.parentId] : inner.parentId,
+    }));
+  }
+  return cloned;
+}
+
 /** クリップボード（モジュールレベル） */
 let clipboard: { layers: Layer[]; animations: AnimationMap } | null = null;
 
@@ -148,7 +169,13 @@ export const useLayerStore = create<LayerState>((set, get) => ({
       solo: false,
       inPoint: 0,
       outPoint: 300, // 10秒 × 30fps
-      transform: createDefaultTransform(),
+      transform: {
+        ...createDefaultTransform(),
+        position: [
+          Math.round(useProjectStore.getState().settings.width / 2),
+          Math.round(useProjectStore.getState().settings.height / 2),
+        ] as [number, number],
+      },
       blendMode: 'normal',
       parentId: null,
       ...(type === 'solid' ? { solidColor: options.solidColor || '#6C5CE7' } : {}),
@@ -190,13 +217,17 @@ export const useLayerStore = create<LayerState>((set, get) => ({
     if (layer?.mediaSource?.startsWith('blob:')) {
       URL.revokeObjectURL(layer.mediaSource);
     }
-    set((s) => ({
-      // 親レイヤー削除時、子レイヤーのparentIdをnullにリセット
-      layers: s.layers
-        .filter((l) => l.id !== id)
-        .map((l) => l.parentId === id ? { ...l, parentId: null } : l),
-      selectedLayerIds: s.selectedLayerIds.filter((sid) => sid !== id),
-    }));
+    set((s) => {
+      const { [id]: _, ...restAnimations } = s.animations;
+      return {
+        // 親レイヤー削除時、子レイヤーのparentIdをnullにリセット
+        layers: s.layers
+          .filter((l) => l.id !== id)
+          .map((l) => l.parentId === id ? { ...l, parentId: null } : l),
+        selectedLayerIds: s.selectedLayerIds.filter((sid) => sid !== id),
+        animations: restAnimations,
+      };
+    });
   },
 
   duplicateLayer: (id) => {
@@ -205,7 +236,7 @@ export const useLayerStore = create<LayerState>((set, get) => ({
     if (!original) return;
     const newId = generateId();
     const clone: Layer = {
-      ...JSON.parse(JSON.stringify(original)),
+      ...deepCloneLayer(original),
       id: newId,
       name: `${original.name} コピー`,
     };
@@ -468,7 +499,7 @@ export const useLayerStore = create<LayerState>((set, get) => ({
       // 後半: 新レイヤー
       const backId = generateId();
       const back: Layer = {
-        ...JSON.parse(JSON.stringify(layer)),
+        ...deepCloneLayer(layer),
         id: backId,
         name: `${layer.name} (後半)`,
         inPoint: frame,
@@ -495,17 +526,24 @@ export const useLayerStore = create<LayerState>((set, get) => ({
         URL.revokeObjectURL(layer.mediaSource);
       }
     }
-    set((s) => ({
-      layers: s.layers
-        .filter((l) => !selectedLayerIds.includes(l.id))
-        .map((l) =>
-          // 削除されるレイヤーを親に持つ子のparentIdをリセット
-          l.parentId && selectedLayerIds.includes(l.parentId)
-            ? { ...l, parentId: null }
-            : l
-        ),
-      selectedLayerIds: [],
-    }));
+    set((s) => {
+      const cleanedAnimations = { ...s.animations };
+      for (const id of selectedLayerIds) {
+        delete cleanedAnimations[id];
+      }
+      return {
+        layers: s.layers
+          .filter((l) => !selectedLayerIds.includes(l.id))
+          .map((l) =>
+            // 削除されるレイヤーを親に持つ子のparentIdをリセット
+            l.parentId && selectedLayerIds.includes(l.parentId)
+              ? { ...l, parentId: null }
+              : l
+          ),
+        selectedLayerIds: [],
+        animations: cleanedAnimations,
+      };
+    });
   },
 
   // -- クリップボード --
@@ -578,6 +616,11 @@ export const useLayerStore = create<LayerState>((set, get) => ({
 
   // -- Undo/Redo --
   saveSnapshot: () => {
+    const state = get();
+    // プリコンポ内の場合、ルートに戻してからスナップショットを保存
+    if (state.compStack.length > 0) {
+      get().exitToRoot();
+    }
     const { layers, animations } = get();
     useHistoryStore.getState().pushSnapshot({
       layers: structuredClone(layers),
@@ -586,6 +629,10 @@ export const useLayerStore = create<LayerState>((set, get) => ({
   },
 
   undo: () => {
+    // プリコンポ内の場合、まずルートに戻す
+    if (get().compStack.length > 0) {
+      get().exitToRoot();
+    }
     const { layers, animations } = get();
     const snapshot = useHistoryStore.getState().undo({
       layers: structuredClone(layers),
@@ -597,6 +644,10 @@ export const useLayerStore = create<LayerState>((set, get) => ({
   },
 
   redo: () => {
+    // プリコンポ内の場合、まずルートに戻す
+    if (get().compStack.length > 0) {
+      get().exitToRoot();
+    }
     const { layers, animations } = get();
     const snapshot = useHistoryStore.getState().redo({
       layers: structuredClone(layers),
@@ -659,7 +710,12 @@ export const useLayerStore = create<LayerState>((set, get) => ({
       precompLayers: innerLayers,
     };
 
-    // 選択レイヤーのアニメーションも移動（今は保持するだけ）
+    // 選択レイヤーのアニメーションを元のanimationsから削除
+    const cleanedAnimations = { ...state.animations };
+    for (const id of selectedIds) {
+      delete cleanedAnimations[id];
+    }
+
     // 元のレイヤーリストから選択レイヤーを除去し、プリコンプレイヤーで置換
     const firstSelectedIdx = state.layers.findIndex(l => selectedIds.includes(l.id));
     const remainingLayers = state.layers.filter(l => !selectedIds.includes(l.id));
@@ -673,7 +729,7 @@ export const useLayerStore = create<LayerState>((set, get) => ({
     const newLayers = [...updatedLayers];
     newLayers.splice(insertIdx, 0, precompLayer);
 
-    set({ layers: newLayers, selectedLayerIds: [precompId] });
+    set({ layers: newLayers, selectedLayerIds: [precompId], animations: cleanedAnimations });
   },
 
   setLabelColor: (id, color) => {
@@ -704,6 +760,35 @@ export const useLayerStore = create<LayerState>((set, get) => ({
       },
     }));
 
+    // アニメーションのposition KF値も絶対座標に変換
+    const offsetAnimations = structuredClone(state.animations);
+    for (const innerLayer of absoluteLayers) {
+      const layerAnim = offsetAnimations[innerLayer.id];
+      if (!layerAnim) continue;
+      // 統合 position KF
+      if (layerAnim['position']?.keyframes.length) {
+        layerAnim['position'].keyframes = layerAnim['position'].keyframes.map(kf => ({
+          ...kf,
+          value: Array.isArray(kf.value)
+            ? [kf.value[0] + offsetX, kf.value[1] + offsetY]
+            : kf.value,
+        }));
+      }
+      // 分割 position.x / position.y KF
+      if (layerAnim['position.x']?.keyframes.length) {
+        layerAnim['position.x'].keyframes = layerAnim['position.x'].keyframes.map(kf => ({
+          ...kf,
+          value: typeof kf.value === 'number' ? kf.value + offsetX : kf.value,
+        }));
+      }
+      if (layerAnim['position.y']?.keyframes.length) {
+        layerAnim['position.y'].keyframes = layerAnim['position.y'].keyframes.map(kf => ({
+          ...kf,
+          value: typeof kf.value === 'number' ? kf.value + offsetY : kf.value,
+        }));
+      }
+    }
+
     const entry: CompStackEntry = {
       precompLayerId: layerId,
       precompName: precompLayer.name,
@@ -716,6 +801,7 @@ export const useLayerStore = create<LayerState>((set, get) => ({
     set({
       compStack: [...state.compStack, entry],
       layers: absoluteLayers,
+      animations: offsetAnimations,
       selectedLayerIds: [],
       activeCompName: precompLayer.name,
     });
@@ -727,6 +813,7 @@ export const useLayerStore = create<LayerState>((set, get) => ({
 
     const entry = state.compStack[state.compStack.length - 1];
     const newStack = state.compStack.slice(0, -1);
+    const [offX, offY] = entry.precompOffset;
 
     // 現在のレイヤーのpositionを相対座標に戻す（絶対座標 - プリコンポ位置）
     const relativeLayers = state.layers.map(l => ({
@@ -734,11 +821,42 @@ export const useLayerStore = create<LayerState>((set, get) => ({
       transform: {
         ...l.transform,
         position: [
-          l.transform.position[0] - entry.precompOffset[0],
-          l.transform.position[1] - entry.precompOffset[1],
+          l.transform.position[0] - offX,
+          l.transform.position[1] - offY,
         ] as [number, number],
       },
     }));
+
+    // アニメーションのposition KF値も相対座標に逆変換
+    const restoredAnimations = structuredClone(entry.savedAnimations);
+    // 内部レイヤーの変更されたアニメーションを保持（position KFは逆変換して保存）
+    for (const innerLayer of state.layers) {
+      const layerAnim = state.animations[innerLayer.id];
+      if (!layerAnim) continue;
+      const clonedAnim = structuredClone(layerAnim);
+      // position KF値を逆変換
+      if (clonedAnim['position']?.keyframes.length) {
+        clonedAnim['position'].keyframes = clonedAnim['position'].keyframes.map(kf => ({
+          ...kf,
+          value: Array.isArray(kf.value)
+            ? [kf.value[0] - offX, kf.value[1] - offY]
+            : kf.value,
+        }));
+      }
+      if (clonedAnim['position.x']?.keyframes.length) {
+        clonedAnim['position.x'].keyframes = clonedAnim['position.x'].keyframes.map(kf => ({
+          ...kf,
+          value: typeof kf.value === 'number' ? kf.value - offX : kf.value,
+        }));
+      }
+      if (clonedAnim['position.y']?.keyframes.length) {
+        clonedAnim['position.y'].keyframes = clonedAnim['position.y'].keyframes.map(kf => ({
+          ...kf,
+          value: typeof kf.value === 'number' ? kf.value - offY : kf.value,
+        }));
+      }
+      restoredAnimations[innerLayer.id] = clonedAnim;
+    }
 
     // プリコンポの内部レイヤーを更新
     const updatedLayers = entry.savedLayers.map(l => {
@@ -752,7 +870,7 @@ export const useLayerStore = create<LayerState>((set, get) => ({
       compStack: newStack,
       layers: updatedLayers,
       selectedLayerIds: entry.savedSelectedIds,
-      animations: entry.savedAnimations,
+      animations: restoredAnimations,
       activeCompName: newStack.length > 0 ? newStack[newStack.length - 1].precompName : null,
     });
   },
@@ -763,23 +881,56 @@ export const useLayerStore = create<LayerState>((set, get) => ({
 
     // 最後のエントリから順にレイヤーを復元（position変換付き）
     let currentLayers = structuredClone(state.layers) as Layer[];
+    let currentAnimations = structuredClone(state.animations);
     let rootLayers: Layer[] = [];
     let rootSelected: string[] = [];
     let rootAnimations: AnimationMap = {};
 
     for (let i = state.compStack.length - 1; i >= 0; i--) {
       const entry = state.compStack[i];
+      const [offX, offY] = entry.precompOffset;
+
       // 絶対座標→相対座標に変換
       const relativeLayers = currentLayers.map(l => ({
         ...l,
         transform: {
           ...l.transform,
           position: [
-            l.transform.position[0] - entry.precompOffset[0],
-            l.transform.position[1] - entry.precompOffset[1],
+            l.transform.position[0] - offX,
+            l.transform.position[1] - offY,
           ] as [number, number],
         },
       }));
+
+      // アニメーションのposition KF値も相対座標に逆変換
+      const restoredAnimations = structuredClone(entry.savedAnimations);
+      for (const innerLayer of currentLayers) {
+        const layerAnim = currentAnimations[innerLayer.id];
+        if (!layerAnim) continue;
+        const clonedAnim = structuredClone(layerAnim);
+        if (clonedAnim['position']?.keyframes.length) {
+          clonedAnim['position'].keyframes = clonedAnim['position'].keyframes.map(kf => ({
+            ...kf,
+            value: Array.isArray(kf.value)
+              ? [kf.value[0] - offX, kf.value[1] - offY]
+              : kf.value,
+          }));
+        }
+        if (clonedAnim['position.x']?.keyframes.length) {
+          clonedAnim['position.x'].keyframes = clonedAnim['position.x'].keyframes.map(kf => ({
+            ...kf,
+            value: typeof kf.value === 'number' ? kf.value - offX : kf.value,
+          }));
+        }
+        if (clonedAnim['position.y']?.keyframes.length) {
+          clonedAnim['position.y'].keyframes = clonedAnim['position.y'].keyframes.map(kf => ({
+            ...kf,
+            value: typeof kf.value === 'number' ? kf.value - offY : kf.value,
+          }));
+        }
+        restoredAnimations[innerLayer.id] = clonedAnim;
+      }
+
       const updatedLayers = entry.savedLayers.map(l => {
         if (l.id === entry.precompLayerId) {
           return { ...l, precompLayers: relativeLayers };
@@ -787,10 +938,11 @@ export const useLayerStore = create<LayerState>((set, get) => ({
         return l;
       });
       currentLayers = updatedLayers;
+      currentAnimations = restoredAnimations;
       if (i === 0) {
         rootLayers = updatedLayers;
         rootSelected = entry.savedSelectedIds;
-        rootAnimations = entry.savedAnimations;
+        rootAnimations = restoredAnimations;
       }
     }
 
