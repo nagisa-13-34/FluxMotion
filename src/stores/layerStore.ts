@@ -14,6 +14,8 @@ interface CompStackEntry {
   precompLayerId: string;
   /** プリコンポレイヤーの名前 */
   precompName: string;
+  /** プリコンポのpositionオフセット（入る時に絶対座標に変換するため） */
+  precompOffset: [number, number];
   /** 保存されたルートレイヤー */
   savedLayers: Layer[];
   /** 保存された選択 */
@@ -686,10 +688,26 @@ export const useLayerStore = create<LayerState>((set, get) => ({
     const precompLayer = state.layers.find(l => l.id === layerId);
     if (!precompLayer || precompLayer.type !== 'precomp' || !precompLayer.precompLayers) return;
 
-    // 現在の状態をスタックに保存
+    // プリコンポのpositionオフセットを保存
+    const offsetX = precompLayer.transform.position[0];
+    const offsetY = precompLayer.transform.position[1];
+
+    // 内部レイヤーのpositionを絶対座標に変換（相対座標 + プリコンポ位置）
+    const absoluteLayers = structuredClone(precompLayer.precompLayers).map((l: Layer) => ({
+      ...l,
+      transform: {
+        ...l.transform,
+        position: [
+          l.transform.position[0] + offsetX,
+          l.transform.position[1] + offsetY,
+        ] as [number, number],
+      },
+    }));
+
     const entry: CompStackEntry = {
       precompLayerId: layerId,
       precompName: precompLayer.name,
+      precompOffset: [offsetX, offsetY],
       savedLayers: structuredClone(state.layers),
       savedSelectedIds: [...state.selectedLayerIds],
       savedAnimations: structuredClone(state.animations),
@@ -697,7 +715,7 @@ export const useLayerStore = create<LayerState>((set, get) => ({
 
     set({
       compStack: [...state.compStack, entry],
-      layers: structuredClone(precompLayer.precompLayers),
+      layers: absoluteLayers,
       selectedLayerIds: [],
       activeCompName: precompLayer.name,
     });
@@ -710,10 +728,22 @@ export const useLayerStore = create<LayerState>((set, get) => ({
     const entry = state.compStack[state.compStack.length - 1];
     const newStack = state.compStack.slice(0, -1);
 
-    // 現在のレイヤーをプリコンポの内部レイヤーに保存
+    // 現在のレイヤーのpositionを相対座標に戻す（絶対座標 - プリコンポ位置）
+    const relativeLayers = state.layers.map(l => ({
+      ...l,
+      transform: {
+        ...l.transform,
+        position: [
+          l.transform.position[0] - entry.precompOffset[0],
+          l.transform.position[1] - entry.precompOffset[1],
+        ] as [number, number],
+      },
+    }));
+
+    // プリコンポの内部レイヤーを更新
     const updatedLayers = entry.savedLayers.map(l => {
       if (l.id === entry.precompLayerId) {
-        return { ...l, precompLayers: structuredClone(state.layers) };
+        return { ...l, precompLayers: relativeLayers };
       }
       return l;
     });
@@ -731,17 +761,28 @@ export const useLayerStore = create<LayerState>((set, get) => ({
     const state = get();
     if (state.compStack.length === 0) return;
 
-    // 最後のエントリから順にレイヤーを復元
-    let currentLayers = structuredClone(state.layers);
+    // 最後のエントリから順にレイヤーを復元（position変換付き）
+    let currentLayers = structuredClone(state.layers) as Layer[];
     let rootLayers: Layer[] = [];
     let rootSelected: string[] = [];
     let rootAnimations: AnimationMap = {};
 
     for (let i = state.compStack.length - 1; i >= 0; i--) {
       const entry = state.compStack[i];
+      // 絶対座標→相対座標に変換
+      const relativeLayers = currentLayers.map(l => ({
+        ...l,
+        transform: {
+          ...l.transform,
+          position: [
+            l.transform.position[0] - entry.precompOffset[0],
+            l.transform.position[1] - entry.precompOffset[1],
+          ] as [number, number],
+        },
+      }));
       const updatedLayers = entry.savedLayers.map(l => {
         if (l.id === entry.precompLayerId) {
-          return { ...l, precompLayers: currentLayers };
+          return { ...l, precompLayers: relativeLayers };
         }
         return l;
       });
