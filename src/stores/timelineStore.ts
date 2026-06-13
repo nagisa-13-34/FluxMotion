@@ -70,9 +70,35 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
   setScrollFrame: (frame) =>
     set({ scrollFrame: Math.max(0, frame) }),
 
-  setWorkAreaIn: () => set((s) => ({ workAreaIn: s.currentFrame })),
-  setWorkAreaOut: () => set((s) => ({ workAreaOut: s.currentFrame })),
+  setWorkAreaIn: () => set((s) => {
+    const frame = s.currentFrame;
+    // Out点が設定済みの場合、Out点より後には設定不可
+    if (s.workAreaOut !== null && frame > s.workAreaOut) {
+      return { workAreaIn: s.workAreaOut };
+    }
+    return { workAreaIn: frame };
+  }),
+  setWorkAreaOut: () => set((s) => {
+    const frame = s.currentFrame;
+    // In点が設定済みの場合、In点より前には設定不可
+    if (s.workAreaIn !== null && frame < s.workAreaIn) {
+      return { workAreaOut: s.workAreaIn };
+    }
+    return { workAreaOut: frame };
+  }),
   clearWorkArea: () => set({ workAreaIn: null, workAreaOut: null }),
-  setWorkArea: (inFrame, outFrame) => set({ workAreaIn: inFrame, workAreaOut: outFrame }),
+  setWorkArea: (inFrame, outFrame) => {
+    // 両方nullの場合はそのまま
+    if (inFrame === null || outFrame === null) {
+      set({ workAreaIn: inFrame, workAreaOut: outFrame });
+      return;
+    }
+    // In > Out の場合はスワップ
+    if (inFrame > outFrame) {
+      set({ workAreaIn: outFrame, workAreaOut: inFrame });
+    } else {
+      set({ workAreaIn: inFrame, workAreaOut: outFrame });
+    }
+  },
 }));
 

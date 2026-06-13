@@ -15,6 +15,9 @@ export class Renderer {
   private _backgroundColor: string;
   /** メディアキャッシュ（src → ロード済みエレメント） */
   private mediaCache: Map<string, HTMLImageElement | HTMLVideoElement> = new Map();
+  /** モーションブラー用オフスクリーンキャンバス */
+  private _mbCanvas: HTMLCanvasElement | null = null;
+  private _mbCtx: CanvasRenderingContext2D | null = null;
 
   constructor(canvas: HTMLCanvasElement, width: number, height: number) {
     this.canvas = canvas;
@@ -113,23 +116,48 @@ export class Renderer {
       this.applyBlendMode(ctx, layer);
 
       if (layer.motionBlur && !transform.directionalScale && !options?.disableMotionBlur) {
-        // モーションブラー: ボックスフィルター（均等重み）でマルチサンプル合成
-        // 実カメラと同じ: シャッター開放中は均等に光を蓄積する
+        // モーションブラー: オフスクリーンキャンバスにサンプルを均等重みで合成し、
+        // 最後に正しいopacityで本キャンバスに転写する
         const shutterAngle = 0.5; // 前後0.5フレーム = シャッターアングル180°相当
-        const numSamples = 24;
-        const sampleAlpha = (transform.opacity / 100) / numSamples;
+        const numSamples = 16;
+        const dpr = window.devicePixelRatio || 1;
 
+        // オフスクリーンキャンバスを取得/作成
+        if (!this._mbCanvas) {
+          this._mbCanvas = document.createElement('canvas');
+          this._mbCtx = this._mbCanvas.getContext('2d')!;
+        }
+        const mbCanvas = this._mbCanvas;
+        const mbCtx = this._mbCtx!;
+        mbCanvas.width = this.width * dpr;
+        mbCanvas.height = this.height * dpr;
+        mbCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        mbCtx.clearRect(0, 0, this.width, this.height);
+
+        // 各サンプルをオフスクリーンに均等alphaで描画
+        const sampleAlpha = 1 / numSamples;
         for (let i = 0; i < numSamples; i++) {
           const t = (i / (numSamples - 1)) * 2 - 1; // -1 ～ 1
           const offset = t * shutterAngle;
           const sampleFrame = currentFrame + offset;
           const sampleTransform = this.resolveWorldTransform(layer, layers, sampleFrame, animations);
-          ctx.save();
-          ctx.globalAlpha = sampleAlpha;
-          this.applyTransformValues(ctx, sampleTransform);
+          mbCtx.save();
+          mbCtx.globalAlpha = sampleAlpha;
+          this.applyTransformValues(mbCtx, sampleTransform);
+          // renderContentはthis.ctxを使うので、一時的にctxを差し替え
+          const origCtx = this.ctx;
+          (this as any).ctx = mbCtx;
           renderContent();
-          ctx.restore();
+          (this as any).ctx = origCtx;
+          mbCtx.restore();
         }
+
+        // オフスクリーン結果を本キャンバスにopacity付きで転写
+        ctx.save();
+        ctx.globalAlpha = transform.opacity / 100;
+        ctx.setTransform(1, 0, 0, 1, 0, 0); // DPR含めた生ピクセルで転写
+        ctx.drawImage(mbCanvas, 0, 0);
+        ctx.restore();
       } else {
         ctx.globalAlpha = transform.opacity / 100;
         if (transform.directionalScale) {

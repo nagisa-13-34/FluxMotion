@@ -280,15 +280,35 @@ export function Preview({ onRenderReady }: PreviewProps) {
   const getLayerSize = (layer: Layer): [number, number] => {
     switch (layer.type) {
       case 'text': {
-        const fontSize = layer.textStyle?.fontSize || 48;
-        const text = layer.textStyle?.text || 'T';
+        const style = layer.textStyle;
+        if (!style) return [200, 100];
+        const fontSize = style.fontSize || 48;
+        const text = style.text || 'T';
         const lines = text.split('\n');
-        const maxW = Math.max(...lines.map(line => {
+        const lineHeight = fontSize * (style.lineHeight || 1.2);
+
+        // Canvas2D measureText で正確な幅を計測
+        const canvas = canvasRef.current;
+        if (canvas) {
+          const measureCtx = canvas.getContext('2d');
+          if (measureCtx) {
+            measureCtx.save();
+            measureCtx.font = `${style.fontWeight || 400} ${fontSize}px "${style.fontFamily || 'Inter'}", sans-serif`;
+            if (style.letterSpacing && 'letterSpacing' in measureCtx) {
+              (measureCtx as any).letterSpacing = `${style.letterSpacing}px`;
+            }
+            const maxW = Math.max(...lines.map(line => measureCtx.measureText(line).width), 1);
+            measureCtx.restore();
+            return [maxW, lines.length * lineHeight];
+          }
+        }
+        // フォールバック: Canvas未準備の場合
+        const fallbackW = Math.max(...lines.map(line => {
           let w = 0;
           for (const ch of line) w += ch.charCodeAt(0) > 255 ? 1.0 : 0.6;
           return w;
         }), 1);
-        return [maxW * fontSize, lines.length * fontSize * 1.4];
+        return [fallbackW * fontSize, lines.length * lineHeight];
       }
       case 'shape':
         return [layer.shapeData?.width ?? 200, layer.shapeData?.height ?? 200];
