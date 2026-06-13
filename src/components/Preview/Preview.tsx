@@ -142,7 +142,8 @@ export function Preview({ onRenderReady }: PreviewProps) {
     if (rendererMode === 'webgpu' && gpuRendererRef.current?.isReady) {
       gpuRendererRef.current.renderFrame(renderLayers, frame, animations);
     } else if (rendererRef.current) {
-      rendererRef.current.renderFrame(renderLayers, frame, animations, { disableMotionBlur: true });
+      const playing = useTimelineStore.getState().isPlaying;
+      rendererRef.current.renderFrame(renderLayers, frame, animations, { disableMotionBlur: !playing });
     }
   }, [editingLayerId, rendererMode]);
 
