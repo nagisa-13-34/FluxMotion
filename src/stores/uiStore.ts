@@ -213,6 +213,16 @@ interface UIState {
   /** プレビューのレンダラーモード */
   rendererMode: 'canvas2d' | 'webgpu';
   setRendererMode: (mode: 'canvas2d' | 'webgpu') => void;
+
+  /** ツールオプション（塗り、枠線、マスク作成等） */
+  toolOptions: {
+    fill: string;
+    fillOpacity: number;
+    stroke: string;
+    strokeWidth: number;
+    createsMask: boolean;
+  };
+  setToolOptions: (options: Partial<UIState['toolOptions']>) => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -231,6 +241,13 @@ export const useUIStore = create<UIState>((set) => ({
   gridSize: 50,
   editingLayerId: null,
   rendererMode: 'canvas2d',
+  toolOptions: {
+    fill: '#A29BFE',
+    fillOpacity: 100,
+    stroke: '#FFFFFF',
+    strokeWidth: 0,
+    createsMask: false,
+  },
 
   setTool: (tool) => set({ activeTool: tool }),
   setActiveShapeType: (type) => set({ activeShapeType: type }),
@@ -265,6 +282,9 @@ export const useUIStore = create<UIState>((set) => ({
   
   setEditingLayerId: (id) => set({ editingLayerId: id }),
   setRendererMode: (mode) => set({ rendererMode: mode }),
+
+  setToolOptions: (options) => 
+    set((s) => ({ toolOptions: { ...s.toolOptions, ...options } })),
 
   getFlexModel: () => flexModel,
 

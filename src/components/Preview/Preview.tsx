@@ -234,8 +234,47 @@ export function Preview({ onRenderReady }: PreviewProps) {
     setViewportZoom(viewportZoom + delta);
   };
 
-  // キャンバスをクリック → 選択解除
-  const handleCanvasClick = () => {
+  // キャンバスをクリック
+  const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (activeTool === 'text') {
+      const container = e.currentTarget;
+      const canvasRect = container.getBoundingClientRect();
+      const clickX = e.clientX - canvasRect.left;
+      const clickY = e.clientY - canvasRect.top;
+      
+      const compX = clickX / scale;
+      const compY = clickY / scale;
+
+      const toolOptions = useUIStore.getState().toolOptions;
+      
+      const layerId = useLayerStore.getState().addLayer('text', {
+        textStyle: {
+          text: '',
+          fontFamily: 'Inter',
+          fontSize: 64,
+          fontWeight: 400,
+          color: toolOptions.fill,
+          strokeColor: toolOptions.stroke,
+          strokeWidth: toolOptions.strokeWidth,
+          textAlign: 'center',
+          letterSpacing: 0,
+          lineHeight: 1.2
+        },
+        transform: {
+          anchorPoint: [0, 0],
+          position: [Math.round(compX), Math.round(compY)],
+          scale: [100, 100],
+          rotation: 0,
+          opacity: 100,
+        }
+      });
+      const newLayer = useLayerStore.getState().layers.find(l => l.id === layerId);
+      if (newLayer) startTextEdit(newLayer);
+      useUIStore.getState().setTool('select');
+      return;
+    }
+
+    // 選択解除
     if (!editingLayerId && activeTool === 'select') {
       useLayerStore.getState().deselectAll();
     }
@@ -274,27 +313,60 @@ export function Preview({ onRenderReady }: PreviewProps) {
       // 最小サイズチェック
       if (compW > 5 && compH > 5) {
         const shapeType = useUIStore.getState().activeShapeType;
-        useLayerStore.getState().saveSnapshot();
-        useLayerStore.getState().addLayer('shape', {
-          shapeData: {
-            shapeType,
-            fill: '#A29BFE',
-            fillOpacity: 100,
-            stroke: 'transparent',
-            strokeWidth: 0,
-            strokeLineCap: 'butt',
-            cornerRadius: 0,
-            width: Math.round(compW),
-            height: Math.round(compH),
-          },
-          transform: {
-            position: [Math.round(compX1 + compW / 2), Math.round(compY1 + compH / 2)],
-            scale: [100, 100],
-            rotation: 0,
-            anchorPoint: [0, 0],
+        const toolOptions = useUIStore.getState().toolOptions;
+        const layerStore = useLayerStore.getState();
+        const selectedId = layerStore.selectedLayerIds.length === 1 ? layerStore.selectedLayerIds[0] : null;
+
+        layerStore.saveSnapshot();
+
+        let targetLayer = null;
+        if (toolOptions.createsMask && selectedId) {
+          targetLayer = layerStore.layers.find(l => l.id === selectedId);
+        }
+
+        if (targetLayer) {
+          // マスク作成モード
+          const newMaskId = Math.random().toString(36).substr(2, 9);
+          // 簡易的にコンポ座標の矩形をマスクとして追加（ローカル変換は省略）
+          // 厳密にはgetWorldToLocalが必要だが、ここではコンポ座標基準で配置する
+          const newMask = {
+            id: newMaskId,
+            name: `マスク ${(targetLayer.masks?.length || 0) + 1}`,
+            points: [
+              { pos: [compX1, compY1] as [number,number], in: [0,0] as [number,number], out: [0,0] as [number,number] },
+              { pos: [compX1 + compW, compY1] as [number,number], in: [0,0] as [number,number], out: [0,0] as [number,number] },
+              { pos: [compX1 + compW, compY1 + compH] as [number,number], in: [0,0] as [number,number], out: [0,0] as [number,number] },
+              { pos: [compX1, compY1 + compH] as [number,number], in: [0,0] as [number,number], out: [0,0] as [number,number] },
+            ],
+            closed: true,
+            inverted: false,
+            mode: 'add' as const,
             opacity: 100,
-          },
-        });
+          };
+          layerStore.updateLayer(targetLayer.id, { masks: [...(targetLayer.masks || []), newMask] });
+        } else {
+          // 通常のシェイプ作成モード
+          layerStore.addLayer('shape', {
+            shapeData: {
+              shapeType,
+              fill: toolOptions.fill,
+              fillOpacity: toolOptions.fillOpacity,
+              stroke: toolOptions.stroke,
+              strokeWidth: toolOptions.strokeWidth,
+              strokeLineCap: 'butt',
+              cornerRadius: 0,
+              width: Math.round(compW),
+              height: Math.round(compH),
+            },
+            transform: {
+              position: [Math.round(compX1 + compW / 2), Math.round(compY1 + compH / 2)],
+              scale: [100, 100],
+              rotation: 0,
+              anchorPoint: [0, 0],
+              opacity: 100,
+            },
+          });
+        }
       }
       setShapeDraw(null);
     };
@@ -333,11 +405,22 @@ export function Preview({ onRenderReady }: PreviewProps) {
     if (e.key === 'Escape') {
       setEditingLayerId(null);
       setEditText('');
-    } else if (e.key === 'Enter' && !e.shiftKey) {
+    } else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
       e.preventDefault();
       commitTextEdit();
     }
   };
+
+  // テキストエリアの自動リサイズ
+  useEffect(() => {
+    if (editingLayerId && textInputRef.current) {
+      const t = textInputRef.current;
+      t.style.height = 'auto';
+      t.style.width = '80px';
+      t.style.width = `${Math.max(80, t.scrollWidth + 10)}px`;
+      t.style.height = `${Math.max(48, t.scrollHeight)}px`;
+    }
+  }, [editText, editingLayerId]);
 
   // ── 表示中のレイヤー ──
   const visibleLayers = mergedLayers.filter(l =>
@@ -649,13 +732,15 @@ export function Preview({ onRenderReady }: PreviewProps) {
                   width: w,
                   height: h,
                   cursor: isEditing ? 'text' : (layer.locked ? 'default' : 'move'),
-                  border: isNullLayer
-                    ? (isSelected ? '1.5px dashed var(--color-accent)' : '1.5px dashed rgba(255, 255, 255, 0.4)')
-                    : (layer.type === 'shape' && layer.shapeData?.shapeType === 'path'
-                      ? 'none'
-                      : (isSelected
-                        ? '1.5px solid var(--color-accent)'
-                        : '1px solid rgba(255, 255, 255, 0.25)')),
+                  border: isEditing
+                    ? 'none'
+                    : isNullLayer
+                      ? (isSelected ? '1.5px dashed var(--color-accent)' : '1.5px dashed rgba(255, 255, 255, 0.4)')
+                      : (layer.type === 'shape' && layer.shapeData?.shapeType === 'path'
+                        ? 'none'
+                        : (isSelected
+                          ? '1.5px solid var(--color-accent)'
+                          : 'none')),
                   borderRadius: isNullLayer ? 0 : 6,
                   boxSizing: 'border-box',
                   pointerEvents: (layer.locked || activeTool === 'pen' || activeTool === 'shape' || activeTool === 'hand') ? 'none' : 'auto',
@@ -674,6 +759,12 @@ export function Preview({ onRenderReady }: PreviewProps) {
                 onMouseDown={(e) => {
                   if (e.button !== 0 || isEditing || layer.locked) return;
                   e.stopPropagation();
+
+                  if (activeTool === 'text' && layer.type === 'text') {
+                    startTextEdit(layer);
+                    return;
+                  }
+
                   e.preventDefault();
                   
                   const store = useLayerStore.getState();
@@ -970,7 +1061,11 @@ export function Preview({ onRenderReady }: PreviewProps) {
               <textarea
                 ref={textInputRef}
                 value={editText}
-                onChange={(e) => setEditText(e.target.value)}
+                onChange={(e) => {
+                  setEditText(e.target.value);
+                  e.target.style.height = 'auto';
+                  e.target.style.height = e.target.scrollHeight + 'px';
+                }}
                 onBlur={commitTextEdit}
                 onKeyDown={handleTextKeyDown}
                 style={{
@@ -980,9 +1075,6 @@ export function Preview({ onRenderReady }: PreviewProps) {
                   transform: layer.textStyle.textAlign === 'left' ? 'none'
                     : layer.textStyle.textAlign === 'right' ? 'translateX(-100%)'
                     : 'translateX(-50%)',
-                  width: 'auto',
-                  minWidth: Math.max(rawW * sx * scale + 20, 80),
-                  minHeight: rawH * sy * scale + 10,
                   fontSize: fontSize * sx * scale,
                   fontFamily: `"${layer.textStyle.fontFamily || 'Inter'}", "Noto Sans JP", sans-serif`,
                   fontWeight: layer.textStyle.fontWeight || 400,

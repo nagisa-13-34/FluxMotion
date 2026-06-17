@@ -117,7 +117,6 @@ const TOOLS: (ToolDef | 'separator')[] = [
     id: 'text',
     label: 'テキスト追加',
     shortcut: 'T',
-    createsLayer: 'text',
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
         <path d="M4 7V4h16v3M9 20h6M12 4v16" />
@@ -183,7 +182,25 @@ export function Toolbar() {
   const handleToolClick = useCallback((tool: ToolDef) => {
     setTool(tool.id);
     if (tool.createsLayer) {
-      addLayer(tool.createsLayer);
+      if (tool.createsLayer === 'text') {
+        const toolOptions = useUIStore.getState().toolOptions;
+        addLayer('text', {
+          textStyle: {
+            text: 'Text Layer',
+            fontFamily: 'Inter',
+            fontSize: 64,
+            fontWeight: 400,
+            color: toolOptions.fill,
+            strokeColor: toolOptions.stroke,
+            strokeWidth: toolOptions.strokeWidth,
+            textAlign: 'center',
+            letterSpacing: 0,
+            lineHeight: 1.2
+          }
+        });
+      } else {
+        addLayer(tool.createsLayer);
+      }
     }
   }, [setTool, addLayer]);
 

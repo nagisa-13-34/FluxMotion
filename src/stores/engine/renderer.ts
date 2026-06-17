@@ -567,7 +567,14 @@ export class Renderer {
     const startY = -totalHeight / 2 + lh / 2;
 
     lines.forEach((line, i) => {
-      ctx.fillText(line, 0, startY + i * lh);
+      const y = startY + i * lh;
+      if (style.strokeWidth && style.strokeWidth > 0 && style.strokeColor && style.strokeColor !== 'transparent') {
+        ctx.strokeStyle = style.strokeColor;
+        ctx.lineWidth = style.strokeWidth;
+        ctx.lineJoin = 'round';
+        ctx.strokeText(line, 0, y);
+      }
+      ctx.fillText(line, 0, y);
     });
 
     // letterSpacingリセット

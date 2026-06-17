@@ -32,6 +32,8 @@ export interface TextStyle {
   fontSize: number;
   fontWeight: number;
   color: string;
+  strokeColor?: string;
+  strokeWidth?: number;
   textAlign: 'left' | 'center' | 'right';
   lineHeight: number;
   /** 文字間隔（px） */

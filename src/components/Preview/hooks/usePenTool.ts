@@ -281,9 +281,11 @@ export function usePenTool({ scale, containerRef }: UsePenToolProps) {
       let targetMaskId: string | undefined = undefined;
       let initialLocalPos: [number, number] = [compX, compY];
 
+      const toolOptions = useUIStore.getState().toolOptions;
+
       store.saveSnapshot();
 
-      if (selectedId) {
+      if (toolOptions.createsMask && selectedId) {
         targetLayerId = selectedId;
         targetMaskId = generateId();
         const layer = store.layers.find(l => l.id === selectedId);
@@ -304,10 +306,10 @@ export function usePenTool({ scale, containerRef }: UsePenToolProps) {
         targetLayerId = store.addLayer('shape', {
           shapeData: {
             shapeType: 'path',
-            fill: 'transparent',
-            fillOpacity: 100,
-            stroke: '#A29BFE',
-            strokeWidth: 4,
+            fill: toolOptions.fill,
+            fillOpacity: toolOptions.fillOpacity,
+            stroke: toolOptions.stroke,
+            strokeWidth: toolOptions.strokeWidth,
             strokeLineCap: 'round',
             points: [{ pos: initialLocalPos, in: [0,0], out: [0,0] }],
             closed: false,

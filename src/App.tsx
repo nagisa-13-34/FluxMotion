@@ -4,6 +4,7 @@ import type { TabNode, TabSetNode, BorderNode, Model, ILayoutApi } from 'flexlay
 import 'flexlayout-react/style/dark.css';
 
 import { MenuBar } from './components/MenuBar/MenuBar';
+import { ToolOptionsBar } from './components/Toolbar/ToolOptionsBar';
 import { Toolbar } from './components/Toolbar/Toolbar';
 import { Preview } from './components/Preview/Preview';
 import { Timeline } from './components/Timeline/Timeline';
@@ -393,6 +394,7 @@ export default function App() {
   return (
     <div className="app-shell" onClick={() => hideContextMenu()}>
       <MenuBar />
+      <ToolOptionsBar />
       <div className="dock-container">
         <LayoutContext.Provider value={layoutRef}>
           <Layout
