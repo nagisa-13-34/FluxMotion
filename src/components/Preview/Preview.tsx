@@ -299,6 +299,23 @@ export function Preview({ onRenderReady }: PreviewProps) {
 
     const store = useLayerStore.getState();
 
+    let currentPenDraw = penDraw;
+    if (currentPenDraw) {
+      const layer = store.layers.find(l => l.id === currentPenDraw!.layerId);
+      let isValid = false;
+      if (layer) {
+        if (currentPenDraw.maskId && layer.masks) {
+          isValid = layer.masks.some(m => m.id === currentPenDraw!.maskId);
+        } else if (layer.shapeData?.points) {
+          isValid = true;
+        }
+      }
+      if (!isValid) {
+        currentPenDraw = null;
+        setPenDraw(null);
+      }
+    }
+
     // 既存ポイントのドラッグ判定（当たり判定）
     let hitPoint: { layerId: string; maskId?: string; pointIndex: number; handleType: 'pos' | 'in' | 'out' } | null = null;
     for (const layerId of store.selectedLayerIds) {
@@ -428,12 +445,12 @@ export function Preview({ onRenderReady }: PreviewProps) {
     }
 
     // パスを閉じる判定（始点付近をクリックしたか）
-    if (penDraw) {
-      const layer = store.layers.find(l => l.id === penDraw.layerId);
+    if (currentPenDraw) {
+      const layer = store.layers.find(l => l.id === currentPenDraw!.layerId);
       if (layer) {
         let points: BezierPoint[] = [];
-        if (penDraw.maskId && layer.masks) {
-          const mask = layer.masks.find(m => m.id === penDraw.maskId);
+        if (currentPenDraw.maskId && layer.masks) {
+          const mask = layer.masks.find(m => m.id === currentPenDraw!.maskId);
           if (mask) points = mask.points;
         } else if (layer.shapeData?.points) {
           points = layer.shapeData.points;
@@ -466,8 +483,8 @@ export function Preview({ onRenderReady }: PreviewProps) {
           if (screenDist < 10) {
             // パスを閉じる
             store.saveSnapshot();
-            if (penDraw.maskId && layer.masks) {
-              const newMasks = layer.masks.map(m => m.id === penDraw.maskId ? { ...m, closed: true } : m);
+            if (currentPenDraw.maskId && layer.masks) {
+              const newMasks = layer.masks.map(m => m.id === currentPenDraw!.maskId ? { ...m, closed: true } : m);
               store.updateLayer(layer.id, { masks: newMasks });
             } else if (layer.shapeData) {
               store.updateLayer(layer.id, { shapeData: { ...layer.shapeData, closed: true } });
@@ -479,7 +496,7 @@ export function Preview({ onRenderReady }: PreviewProps) {
       }
     }
 
-    if (!penDraw) {
+    if (!currentPenDraw) {
       // 削除や変換モードの場合は、新しいポイントの作成を防ぐ
       const activePenType = useUIStore.getState().activePenType;
       if (activePenType === 'remove' || activePenType === 'convert') {
@@ -536,15 +553,15 @@ export function Preview({ onRenderReady }: PreviewProps) {
 
     } else {
       // 既存のパスにポイントを追加
-      const layer = store.layers.find(l => l.id === penDraw.layerId);
+      const layer = store.layers.find(l => l.id === currentPenDraw!.layerId);
       if (layer) {
         store.saveSnapshot();
         const localPos = getWorldToLocal(layer, compX, compY);
         const newPoint: BezierPoint = { pos: localPos, in: [0,0], out: [0,0] };
         
         let newIndex = 0;
-        if (penDraw.maskId && layer.masks) {
-          const maskIdx = layer.masks.findIndex(m => m.id === penDraw.maskId);
+        if (currentPenDraw.maskId && layer.masks) {
+          const maskIdx = layer.masks.findIndex(m => m.id === currentPenDraw!.maskId);
           if (maskIdx >= 0) {
             const newMasks = [...layer.masks];
             newMasks[maskIdx] = { ...newMasks[maskIdx], points: [...newMasks[maskIdx].points, newPoint] };
@@ -556,7 +573,7 @@ export function Preview({ onRenderReady }: PreviewProps) {
           newIndex = newPoints.length - 1;
           store.updateLayer(layer.id, { shapeData: { ...layer.shapeData, points: newPoints } });
         }
-        setPenDraw({ ...penDraw, currentIndex: newIndex, isDragging: true });
+        setPenDraw({ ...currentPenDraw, currentIndex: newIndex, isDragging: true });
       }
     }
   }, [activeTool, scale, penDraw, getWorldToLocal, setTool]);
