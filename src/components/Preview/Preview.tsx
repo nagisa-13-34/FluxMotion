@@ -552,6 +552,11 @@ export function Preview({ onRenderReady }: PreviewProps) {
       setPenDraw({ layerId: targetLayerId, maskId: targetMaskId, currentIndex: 0, isDragging: true });
 
     } else {
+      const activePenType = useUIStore.getState().activePenType;
+      if (activePenType === 'remove' || activePenType === 'convert') {
+        return;
+      }
+
       // 既存のパスにポイントを追加
       const layer = store.layers.find(l => l.id === currentPenDraw!.layerId);
       if (layer) {
