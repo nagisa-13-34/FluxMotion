@@ -16,7 +16,8 @@ interface ToolDef {
 
 interface SubToolDef {
   label: string;
-  shapeType: string;
+  shapeType?: string;
+  penType?: string;
   icon: React.JSX.Element;
 }
 
@@ -46,6 +47,44 @@ const SHAPE_SUB_TOOLS: SubToolDef[] = [
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
         <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+      </svg>
+    ),
+  },
+];
+
+/** ペンツールのサブツール定義 */
+const PEN_SUB_TOOLS: SubToolDef[] = [
+  {
+    label: 'ペンツール',
+    penType: 'normal',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M12 19l7-7 3 3-7 7-3-3z" />
+        <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z" />
+        <path d="M2 2l7.586 7.586" />
+        <circle cx="11" cy="11" r="2" />
+      </svg>
+    ),
+  },
+  {
+    label: '頂点削除ツール',
+    penType: 'remove',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M12 19l7-7 3 3-7 7-3-3z" />
+        <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z" />
+        <line x1="2" y1="2" x2="10" y2="10" stroke="#ff4757" />
+        <circle cx="11" cy="11" r="2" />
+      </svg>
+    ),
+  },
+  {
+    label: '頂点切り替えツール',
+    penType: 'convert',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M4 14l8-10 8 10" />
+        <line x1="4" y1="14" x2="20" y2="14" strokeDasharray="2 2" />
       </svg>
     ),
   },
@@ -101,6 +140,7 @@ const TOOLS: (ToolDef | 'separator')[] = [
     id: 'pen',
     label: 'ペンツール',
     shortcut: 'G',
+    subTools: PEN_SUB_TOOLS,
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
         <path d="M12 19l7-7 3 3-7 7-3-3z" />
@@ -120,6 +160,8 @@ export function Toolbar() {
   const setTool = useUIStore((s) => s.setTool);
   const activeShapeType = useUIStore((s) => s.activeShapeType);
   const setActiveShapeType = useUIStore((s) => s.setActiveShapeType);
+  const activePenType = useUIStore((s) => s.activePenType);
+  const setActivePenType = useUIStore((s) => s.setActivePenType);
   const addLayer = useLayerStore((s) => s.addLayer);
 
   // サブメニュー表示状態
@@ -175,16 +217,26 @@ export function Toolbar() {
   }, []);
 
   const handleSubToolClick = useCallback((tool: ToolDef, sub: SubToolDef) => {
-    setActiveShapeType(sub.shapeType as any);
+    if (sub.shapeType) {
+      setActiveShapeType(sub.shapeType as any);
+    } else if (sub.penType) {
+      setActivePenType(sub.penType as any);
+    }
     setTool(tool.id);
     setSubMenuToolId(null);
-  }, [setTool, setActiveShapeType]);
+  }, [setTool, setActiveShapeType, setActivePenType]);
 
   // 現在のシェイプタイプに応じたアイコン
   const getShapeIcon = useCallback(() => {
     const sub = SHAPE_SUB_TOOLS.find(s => s.shapeType === activeShapeType);
     return sub?.icon || SHAPE_SUB_TOOLS[0].icon;
   }, [activeShapeType]);
+
+  // 現在のペンタイプに応じたアイコン
+  const getPenIcon = useCallback(() => {
+    const sub = PEN_SUB_TOOLS.find(s => s.penType === activePenType);
+    return sub?.icon || PEN_SUB_TOOLS[0].icon;
+  }, [activePenType]);
 
   return (
     <div className="toolbar">
@@ -194,7 +246,8 @@ export function Toolbar() {
         }
 
         const isShapeTool = tool.id === 'shape';
-        const icon = isShapeTool ? getShapeIcon() : tool.icon;
+        const isPenTool = tool.id === 'pen';
+        const icon = isShapeTool ? getShapeIcon() : (isPenTool ? getPenIcon() : tool.icon);
         const hasSubTools = !!(tool.subTools && tool.subTools.length > 0);
 
         return (
@@ -228,17 +281,20 @@ export function Toolbar() {
                   style={{ position: 'fixed', left: rect.right + 2, top: rect.top }}
                   onMouseDown={(e) => e.stopPropagation()}
                 >
-                  {tool.subTools.map((sub) => (
-                    <button
-                      key={sub.shapeType}
-                      className={`subtool-item${activeShapeType === sub.shapeType ? ' active' : ''}`}
-                      title={sub.label}
-                      onClick={() => handleSubToolClick(tool, sub)}
-                    >
-                      {sub.icon}
-                      <span className="subtool-label">{sub.label}</span>
-                    </button>
-                  ))}
+                  {tool.subTools.map((sub) => {
+                    const isActive = sub.shapeType ? activeShapeType === sub.shapeType : activePenType === sub.penType;
+                    return (
+                      <button
+                        key={sub.shapeType || sub.penType}
+                        className={`subtool-item${isActive ? ' active' : ''}`}
+                        title={sub.label}
+                        onClick={() => handleSubToolClick(tool, sub)}
+                      >
+                        {sub.icon}
+                        <span className="subtool-label">{sub.label}</span>
+                      </button>
+                    );
+                  })}
                 </div>,
                 document.body
               );

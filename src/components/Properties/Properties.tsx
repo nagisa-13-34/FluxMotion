@@ -44,6 +44,7 @@ export function Properties() {
     transform: true,
     text: true,
     shape: true,
+    masks: true,
     layer: true,
     expression: false,
   });
@@ -1249,7 +1250,7 @@ export function Properties() {
                   <div className="prop-value">
                     <input
                       type="color"
-                      value={selectedLayer.shapeData.fill}
+                      value={selectedLayer.shapeData.fill === 'transparent' ? '#000000' : selectedLayer.shapeData.fill}
                       onChange={(e) =>
                         updateLayer(selectedLayer.id, {
                           shapeData: { ...selectedLayer.shapeData!, fill: e.target.value },
@@ -1325,6 +1326,70 @@ export function Properties() {
                     { min: 0, step: 1, suffix: 'px' },
                   )
                 }
+              </>
+            )}
+          </div>
+        )}
+
+        {/* マスク固有プロパティ */}
+        {selectedLayer.masks && selectedLayer.masks.length > 0 && (
+          <div className="prop-group">
+            <div className="prop-group-header" onClick={() => toggleGroup('masks')}>
+              <svg className={`chevron${openGroups.masks ? ' open' : ''}`} viewBox="0 0 24 24" fill="currentColor">
+                <path d="M10 6l6 6-6 6V6z" />
+              </svg>
+              マスク
+            </div>
+            {openGroups.masks && (
+              <>
+                {selectedLayer.masks.map((mask) => (
+                  <div key={mask.id} style={{ marginBottom: '8px' }}>
+                    <div className="prop-row">
+                      <div />
+                      <span className="prop-label" style={{ fontWeight: 600 }}>{mask.name}</span>
+                      <div className="prop-value" style={{ justifyContent: 'flex-end' }}>
+                        <button
+                          onClick={() => {
+                            const newMasks = selectedLayer.masks!.filter(m => m.id !== mask.id);
+                            updateLayer(selectedLayer.id, { masks: newMasks });
+                          }}
+                          style={{
+                            background: 'transparent',
+                            border: '1px solid var(--color-border)',
+                            color: 'var(--color-text-muted)',
+                            borderRadius: '4px',
+                            padding: '2px 8px',
+                            cursor: 'pointer',
+                            fontSize: '11px'
+                          }}
+                        >
+                          削除
+                        </button>
+                      </div>
+                    </div>
+                    <div className="prop-row">
+                      <div />
+                      <span className="prop-label">モード</span>
+                      <div className="prop-value">
+                        <select
+                          value={mask.mode}
+                          onChange={(e) => {
+                            const newMasks = selectedLayer.masks!.map(m =>
+                              m.id === mask.id ? { ...m, mode: e.target.value as any } : m
+                            );
+                            updateLayer(selectedLayer.id, { masks: newMasks });
+                          }}
+                          style={selectStyle}
+                        >
+                          <option value="add">加算</option>
+                          <option value="subtract">減算</option>
+                          <option value="intersect">交差</option>
+                          <option value="difference">差</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </>
             )}
           </div>

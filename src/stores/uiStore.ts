@@ -3,6 +3,7 @@ import { Model, Actions, DockLocation } from 'flexlayout-react';
 import type { IJsonModel } from 'flexlayout-react';
 
 export type ToolType = 'select' | 'hand' | 'text' | 'shape' | 'pen';
+export type PenType = 'normal' | 'add' | 'remove' | 'convert';
 import type { ShapeType } from '../types/layer';
 
 /** パネルID定数 */
@@ -166,6 +167,10 @@ interface UIState {
   activeShapeType: ShapeType;
   setActiveShapeType: (type: ShapeType) => void;
 
+  /** 現在選択中のペンツールタイプ */
+  activePenType: PenType;
+  setActivePenType: (type: PenType) => void;
+
   setTool: (tool: ToolType) => void;
   setActiveMenu: (menu: string | null) => void;
   showContextMenu: (x: number, y: number, items: ContextMenuItem[]) => void;
@@ -177,6 +182,10 @@ interface UIState {
   /** コンポジション設定ダイアログ */
   showCompSettings: boolean;
   setShowCompSettings: (v: boolean) => void;
+
+  /** エクスポート設定ダイアログ */
+  showExportDialog: boolean;
+  setShowExportDialog: (v: boolean) => void;
 
   /** FlexLayout Model を取得 */
   getFlexModel: () => Model;
@@ -201,18 +210,21 @@ interface UIState {
 export const useUIStore = create<UIState>((set) => ({
   activeTool: 'select',
   activeShapeType: 'rectangle',
+  activePenType: 'normal',
   activeMenu: null,
   contextMenu: { show: false, x: 0, y: 0, items: [] },
   viewportZoom: 50,
   showOnlyKeyframed: false,
   expandedLayerIds: [],
   showCompSettings: false,
+  showExportDialog: false,
   showGrid: false,
   snapEnabled: true,
   gridSize: 50,
 
   setTool: (tool) => set({ activeTool: tool }),
   setActiveShapeType: (type) => set({ activeShapeType: type }),
+  setActivePenType: (type) => set({ activePenType: type }),
   setActiveMenu: (menu) => set({ activeMenu: menu }),
 
   showContextMenu: (x, y, items) =>
@@ -233,6 +245,7 @@ export const useUIStore = create<UIState>((set) => ({
     })),
 
   setShowCompSettings: (v) => set({ showCompSettings: v }),
+  setShowExportDialog: (v) => set({ showExportDialog: v }),
 
   setShowGrid: (v) => set({ showGrid: v }),
   toggleGrid: () => set((s) => ({ showGrid: !s.showGrid })),
