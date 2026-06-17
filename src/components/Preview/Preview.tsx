@@ -10,6 +10,27 @@ import type { Layer, BezierPoint } from '../../types/layer';
 import { generateId, createDefaultTransform } from '../../types/layer';
 import { usePenTool } from './hooks/usePenTool';
 
+// #region agent log
+const debugPreviewLog = (hypothesisId: string, message: string, data: Record<string, unknown> = {}, runId: string = 'post-fix') => {
+  fetch('/__debug_ingest', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Debug-Session-Id': '262bcc',
+    },
+    body: JSON.stringify({
+      sessionId: '262bcc',
+      runId,
+      hypothesisId,
+      location: 'components/Preview/Preview.tsx',
+      message,
+      data,
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+};
+// #endregion
+
 interface PreviewProps {
   onRenderReady: (callback: () => void) => void;
 }
@@ -147,10 +168,11 @@ export function Preview({ onRenderReady }: PreviewProps) {
     return [lx + resolved.anchorPoint[0], ly + resolved.anchorPoint[1]];
   }, [layers, currentFrame, animations]);
 
-  const { localLayerOverrides, handlePenMouseDown } = usePenTool({
+  const { localLayerOverrides, handlePenMouseDown, penDraw } = usePenTool({
     scale,
     containerRef,
-    getWorldToLocal
+    getWorldToLocal,
+    resolveOverlayTransform: (layer) => resolveOverlayWorldTransform(layer, layers, currentFrame, animations)
   });
 
   // レンダリング用のマージされたレイヤー配列
@@ -505,6 +527,12 @@ export function Preview({ onRenderReady }: PreviewProps) {
           {activeTool === 'pen' && (() => {
             const store = useLayerStore.getState();
             // penDraw中ならそのレイヤーのみ、そうでなければ選択中レイヤーを対象にする
+            debugPreviewLog('H8', 'pen tool render', {
+              penDrawPresent: !!penDraw,
+              penDrawLayerId: penDraw?.layerId,
+              selectedLayerIdsCount: store.selectedLayerIds.length,
+              pointDragPresent: false,
+            });
             const targetLayerIds = penDraw ? [penDraw.layerId] : store.selectedLayerIds;
             return targetLayerIds.map(layerId => {
               const layer = mergedLayers.find(l => l.id === layerId);

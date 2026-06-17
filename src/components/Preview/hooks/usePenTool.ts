@@ -1,7 +1,6 @@
-import { useState, useEffect, useCallback, RefObject } from 'react';
+import { useState, useEffect, useCallback, RefObject, useRef } from 'react';
 import { useLayerStore } from '../../../stores/layerStore';
 import { useUIStore } from '../../../stores/uiStore';
-import { resolveOverlayTransform } from '../../../stores/engine/overlayTransform';
 import type { BezierPoint, Layer } from '../../../types/layer';
 import { generateId, createDefaultTransform } from '../../../types/layer';
 
@@ -9,9 +8,10 @@ export interface UsePenToolProps {
   scale: number;
   containerRef: RefObject<HTMLDivElement>;
   getWorldToLocal: (layer: Layer, worldX: number, worldY: number) => [number, number];
+  resolveOverlayTransform: (layer: Layer) => any;
 }
 
-export function usePenTool({ scale, containerRef, getWorldToLocal }: UsePenToolProps) {
+export function usePenTool({ scale, containerRef, getWorldToLocal, resolveOverlayTransform }: UsePenToolProps) {
   const activeTool = useUIStore((s) => s.activeTool);
   const setTool = useUIStore((s) => s.setTool);
 
@@ -31,6 +31,7 @@ export function usePenTool({ scale, containerRef, getWorldToLocal }: UsePenToolP
 
   // オプティミスティックUI用のローカルオーバーライド
   const [localLayerOverrides, setLocalLayerOverrides] = useState<Record<string, Partial<Layer>>>({});
+  const localOverridesRef = useRef<Record<string, Partial<Layer>>>({});
 
   const handlePenMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     if (activeTool !== 'pen') return;
@@ -351,30 +352,28 @@ export function usePenTool({ scale, containerRef, getWorldToLocal }: UsePenToolP
         if (maskIdx >= 0) {
           const newMasks = [...layer.masks];
           newMasks[maskIdx] = { ...newMasks[maskIdx], points: updatePoints(newMasks[maskIdx].points) };
-          setLocalLayerOverrides(prev => ({
-            ...prev,
+          localOverridesRef.current = {
+            ...localOverridesRef.current,
             [layer.id]: { masks: newMasks }
-          }));
+          };
+          setLocalLayerOverrides(localOverridesRef.current);
         }
       } else if (layer.shapeData?.points) {
-        setLocalLayerOverrides(prev => ({
-          ...prev,
+        localOverridesRef.current = {
+          ...localOverridesRef.current,
           [layer.id]: { shapeData: { ...layer.shapeData!, points: updatePoints(layer.shapeData.points) } }
-        }));
+        };
+        setLocalLayerOverrides(localOverridesRef.current);
       }
     };
 
     const handleUp = () => {
-      setLocalLayerOverrides(prev => {
-        const override = prev[penDraw.layerId];
-        if (override) {
-          useLayerStore.getState().updateLayer(penDraw.layerId, override);
-          const next = { ...prev };
-          delete next[penDraw.layerId];
-          return next;
-        }
-        return prev;
-      });
+      const override = localOverridesRef.current[penDraw.layerId];
+      if (override) {
+        useLayerStore.getState().updateLayer(penDraw.layerId, override);
+      }
+      localOverridesRef.current = {};
+      setLocalLayerOverrides({});
       setPenDraw(prev => prev ? { ...prev, isDragging: false } : null);
     };
 
@@ -453,30 +452,28 @@ export function usePenTool({ scale, containerRef, getWorldToLocal }: UsePenToolP
         if (maskIdx >= 0) {
           const newMasks = [...layer.masks];
           newMasks[maskIdx] = { ...newMasks[maskIdx], points: updatePoints(newMasks[maskIdx].points) };
-          setLocalLayerOverrides(prev => ({
-            ...prev,
+          localOverridesRef.current = {
+            ...localOverridesRef.current,
             [layer.id]: { masks: newMasks }
-          }));
+          };
+          setLocalLayerOverrides(localOverridesRef.current);
         }
       } else if (layer.shapeData?.points) {
-        setLocalLayerOverrides(prev => ({
-          ...prev,
+        localOverridesRef.current = {
+          ...localOverridesRef.current,
           [layer.id]: { shapeData: { ...layer.shapeData!, points: updatePoints(layer.shapeData.points) } }
-        }));
+        };
+        setLocalLayerOverrides(localOverridesRef.current);
       }
     };
 
     const handleUp = () => {
-      setLocalLayerOverrides(prev => {
-        const override = prev[pointDrag.layerId];
-        if (override) {
-          useLayerStore.getState().updateLayer(pointDrag.layerId, override);
-          const next = { ...prev };
-          delete next[pointDrag.layerId];
-          return next;
-        }
-        return prev;
-      });
+      const override = localOverridesRef.current[pointDrag.layerId];
+      if (override) {
+        useLayerStore.getState().updateLayer(pointDrag.layerId, override);
+      }
+      localOverridesRef.current = {};
+      setLocalLayerOverrides({});
       setPointDrag(null);
     };
 
