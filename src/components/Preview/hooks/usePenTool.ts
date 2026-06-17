@@ -32,6 +32,8 @@ export function usePenTool({ scale, containerRef }: UsePenToolProps) {
     maskId?: string;
     pointIndex: number;
     handleType: 'pos' | 'in' | 'out' | 'pull';
+    offsetX: number;
+    offsetY: number;
   } | null>(null);
 
   // オプティミスティックUI用のローカルオーバーライド
@@ -70,7 +72,7 @@ export function usePenTool({ scale, containerRef }: UsePenToolProps) {
       }
     }
 
-    let hitPoint: { layerId: string; maskId?: string; pointIndex: number; handleType: 'pos' | 'in' | 'out' } | null = null;
+    let hitPoint: { layerId: string; maskId?: string; pointIndex: number; handleType: 'pos' | 'in' | 'out'; offsetX: number; offsetY: number } | null = null;
     
     // ヘルパー: ワールド座標からローカル座標への変換
     const getWorldToLocal = (layer: Layer, worldX: number, worldY: number): [number, number] => {
@@ -123,15 +125,22 @@ export function usePenTool({ scale, containerRef }: UsePenToolProps) {
           const [ox, oy] = l2s(p.pos[0] + p.out[0], p.pos[1] + p.out[1]);
           
           if ((p.in[0] !== 0 || p.in[1] !== 0) && Math.hypot(screenX - ix, screenY - iy) < HIT_TEST_RADIUS_HANDLE) {
-            hitPoint = { layerId: layer.id, maskId, pointIndex: i, handleType: 'in' };
+            const [localMouseX, localMouseY] = getWorldToLocal(layer, compX, compY);
+            const handleLocalX = p.pos[0] + p.in[0];
+            const handleLocalY = p.pos[1] + p.in[1];
+            hitPoint = { layerId: layer.id, maskId, pointIndex: i, handleType: 'in', offsetX: localMouseX - handleLocalX, offsetY: localMouseY - handleLocalY };
             return true;
           }
           if ((p.out[0] !== 0 || p.out[1] !== 0) && Math.hypot(screenX - ox, screenY - oy) < HIT_TEST_RADIUS_HANDLE) {
-            hitPoint = { layerId: layer.id, maskId, pointIndex: i, handleType: 'out' };
+            const [localMouseX, localMouseY] = getWorldToLocal(layer, compX, compY);
+            const handleLocalX = p.pos[0] + p.out[0];
+            const handleLocalY = p.pos[1] + p.out[1];
+            hitPoint = { layerId: layer.id, maskId, pointIndex: i, handleType: 'out', offsetX: localMouseX - handleLocalX, offsetY: localMouseY - handleLocalY };
             return true;
           }
           if (Math.hypot(screenX - px, screenY - py) < HIT_TEST_RADIUS_POS) {
-            hitPoint = { layerId: layer.id, maskId, pointIndex: i, handleType: 'pos' };
+            const [localMouseX, localMouseY] = getWorldToLocal(layer, compX, compY);
+            hitPoint = { layerId: layer.id, maskId, pointIndex: i, handleType: 'pos', offsetX: localMouseX - p.pos[0], offsetY: localMouseY - p.pos[1] };
             return true;
           }
         }
@@ -201,7 +210,7 @@ export function usePenTool({ scale, containerRef }: UsePenToolProps) {
               }
               return;
             } else {
-              setPointDrag({ ...hitPoint, handleType: 'pull' as any });
+              setPointDrag({ ...hitPoint, handleType: 'pull' as any, offsetX: 0, offsetY: 0 });
               return;
             }
           }
@@ -480,31 +489,25 @@ export function usePenTool({ scale, containerRef }: UsePenToolProps) {
       const updatePoints = (points: BezierPoint[]) => {
         const newPoints = [...points];
         const currentP = newPoints[pointDrag.pointIndex];
+        const targetX = lx - pointDrag.offsetX;
+        const targetY = ly - pointDrag.offsetY;
         
         if (pointDrag.handleType === 'pos') {
           newPoints[pointDrag.pointIndex] = {
             ...currentP,
-            pos: [lx, ly],
+            pos: [targetX, targetY],
           };
         } else if (pointDrag.handleType === 'in') {
-          const inX = lx - currentP.pos[0];
-          const inY = ly - currentP.pos[1];
+          const inX = targetX - currentP.pos[0];
+          const inY = targetY - currentP.pos[1];
           newPoints[pointDrag.pointIndex] = {
             ...currentP,
             in: [inX, inY],
             out: [-inX, -inY],
           };
-        } else if (pointDrag.handleType === 'out') {
-          const outX = lx - currentP.pos[0];
-          const outY = ly - currentP.pos[1];
-          newPoints[pointDrag.pointIndex] = {
-            ...currentP,
-            out: [outX, outY],
-            in: [-outX, -outY],
-          };
-        } else if (pointDrag.handleType === 'pull' as any) {
-          const outX = lx - currentP.pos[0];
-          const outY = ly - currentP.pos[1];
+        } else if (pointDrag.handleType === 'out' || pointDrag.handleType === 'pull' as any) {
+          const outX = targetX - currentP.pos[0];
+          const outY = targetY - currentP.pos[1];
           newPoints[pointDrag.pointIndex] = {
             ...currentP,
             out: [outX, outY],
