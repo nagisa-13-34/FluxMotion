@@ -160,6 +160,14 @@ export function Preview({ onRenderReady }: PreviewProps) {
     };
   }, [rendererMode, settings.width, settings.height, settings.backgroundColor]);
 
+  const toggleRenderer = () => {
+    if (rendererMode === 'canvas2d' && gpuAvailable) {
+      setRendererMode('webgpu');
+    } else {
+      setRendererMode('canvas2d');
+    }
+  };
+
   const { localLayerOverrides, localOverridesRef, handlePenMouseDown, penDraw } = usePenTool({
     scale,
     containerRef

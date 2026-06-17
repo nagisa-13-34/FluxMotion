@@ -7,8 +7,8 @@ import { resolveOverlayWorldTransform } from '../../../stores/engine/overlayTran
 import type { BezierPoint, Layer } from '../../../types/layer';
 import { generateId, createDefaultTransform } from '../../../types/layer';
 
-const HIT_TEST_RADIUS_HANDLE = 6;
-const HIT_TEST_RADIUS_POS = 8;
+const HIT_TEST_RADIUS_HANDLE = 12; // 変更: 6 -> 12（ヒットエリア拡大）
+const HIT_TEST_RADIUS_POS = 14;    // 変更: 8 -> 14（ヒットエリア拡大）
 const SNAP_CLOSE_RADIUS = 10;
 
 export interface UsePenToolProps {

@@ -232,13 +232,44 @@ export function Timeline() {
       const rect = tracksRef.current?.getBoundingClientRect();
       if (!rect) return;
       const dx = e.clientX - clipDrag.startX;
-      const frameDelta = Math.round(dx / zoom);
+      let frameDelta = Math.round(dx / zoom);
 
       const layerState = useLayerStore.getState();
+      const snapThreshold = Math.max(1, Math.round(4 / zoom)); // 4px
+      
+      // スナップ先の収集 (自分以外のレイヤーの in/out と現在のプレイヘッド)
+      const snapTargets = [useTimelineStore.getState().currentFrame];
+      layerState.layers.forEach(l => {
+        if (l.id !== clipDrag.layerId) {
+          snapTargets.push(l.inPoint, l.outPoint);
+        }
+      });
+
+      // スナップ判定用関数
+      const getSnappedDelta = (targetFrame: number, originalFrame: number) => {
+        let bestDelta = frameDelta;
+        let minDiff = Infinity;
+        for (const target of snapTargets) {
+          const projected = originalFrame + frameDelta;
+          const diff = Math.abs(target - projected);
+          if (diff < snapThreshold && diff < minDiff) {
+            minDiff = diff;
+            bestDelta = target - originalFrame;
+          }
+        }
+        return bestDelta;
+      };
       const layer = layerState.layers.find((l) => l.id === clipDrag.layerId);
       if (!layer) return;
 
       if (clipDrag.type === 'move') {
+        const snapDeltaIn = getSnappedDelta(clipDrag.origIn + frameDelta, clipDrag.origIn);
+        const snapDeltaOut = getSnappedDelta(clipDrag.origOut + frameDelta, clipDrag.origOut);
+        // IN点とOUT点のどちらか近い方にスナップする
+        const diffIn = Math.abs(snapDeltaIn - frameDelta);
+        const diffOut = Math.abs(snapDeltaOut - frameDelta);
+        frameDelta = diffIn < diffOut ? snapDeltaIn : snapDeltaOut;
+        
         const newIn = Math.max(0, clipDrag.origIn + frameDelta);
         const duration = clipDrag.origOut - clipDrag.origIn;
         layerState.updateLayer(clipDrag.layerId, {
@@ -246,9 +277,11 @@ export function Timeline() {
           outPoint: newIn + duration,
         });
       } else if (clipDrag.type === 'trimLeft') {
+        frameDelta = getSnappedDelta(clipDrag.origIn + frameDelta, clipDrag.origIn);
         const newIn = Math.max(0, Math.min(clipDrag.origIn + frameDelta, clipDrag.origOut - 1));
         layerState.updateLayer(clipDrag.layerId, { inPoint: newIn });
       } else if (clipDrag.type === 'trimRight') {
+        frameDelta = getSnappedDelta(clipDrag.origOut + frameDelta, clipDrag.origOut);
         const newOut = Math.max(clipDrag.origIn + 1, clipDrag.origOut + frameDelta);
         layerState.updateLayer(clipDrag.layerId, { outPoint: newOut });
       }

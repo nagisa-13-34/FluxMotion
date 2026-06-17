@@ -277,6 +277,7 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  pointer-events: none;
 }
 
 /* ---- Playhead ---- */
@@ -365,6 +366,15 @@
   cursor: ew-resize;
   z-index: 10;
   transition: background var(--transition-fast);
+}
+/* クリック領域を広げるための疑似要素 */
+.trim-handle::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -4px;
+  right: -4px;
 }
 .trim-handle:hover {
   background: rgba(255, 255, 255, 0.3);
