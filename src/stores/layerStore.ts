@@ -131,7 +131,7 @@ function getLayerColor(type: Layer['type']): string {
 
 /** レイヤーのディープクローン（precompLayers内のIDも再生成） */
 function deepCloneLayer(layer: Layer): Layer {
-  const cloned = JSON.parse(JSON.stringify(layer)) as Layer;
+  const cloned = structuredClone(layer);
   // precompLayersがある場合、内部レイヤーのIDも再生成
   if (cloned.precompLayers) {
     const idMap: Record<string, string> = {};
@@ -257,7 +257,7 @@ export const useLayerStore = create<LayerState>((set, get) => ({
     // アニメーションもコピー
     const newAnims = { ...state.animations };
     if (state.animations[id]) {
-      newAnims[newId] = JSON.parse(JSON.stringify(state.animations[id]));
+      newAnims[newId] = structuredClone(state.animations[id]);
     }
     set({ layers: newLayers, selectedLayerIds: [newId], animations: newAnims });
   },
@@ -519,7 +519,7 @@ export const useLayerStore = create<LayerState>((set, get) => ({
       newLayers.splice(idx + 1, 0, back);
       // アニメーションもコピー
       if (animations[id]) {
-        newAnims[backId] = JSON.parse(JSON.stringify(animations[id]));
+        newAnims[backId] = structuredClone(animations[id]);
       }
       newSelected.push(id, backId);
     }
@@ -564,11 +564,11 @@ export const useLayerStore = create<LayerState>((set, get) => ({
     const copied = layers.filter(l => selectedLayerIds.includes(l.id));
     const copiedAnims: Record<string, Record<string, AnimatedProperty>> = {};
     for (const id of selectedLayerIds) {
-      if (animations[id]) copiedAnims[id] = JSON.parse(JSON.stringify(animations[id]));
+      if (animations[id]) copiedAnims[id] = structuredClone(animations[id]);
     }
     set({
       clipboard: {
-        layers: JSON.parse(JSON.stringify(copied)),
+        layers: structuredClone(copied),
         animations: copiedAnims,
       },
     });
@@ -606,13 +606,17 @@ export const useLayerStore = create<LayerState>((set, get) => ({
         // コピー元の親がペースト対象外ならnullにリセット
         layer.parentId = null;
       }
+      // 念のため循環参照チェック
+      if (layer.parentId && !get().canSetParent(layer.id, layer.parentId)) {
+        layer.parentId = null;
+      }
     }
 
     // アニメーションもIDを更新してコピー
     const newAnims = { ...get().animations };
     for (const [oldId, anim] of Object.entries(clipboard.animations)) {
       if (idMap[oldId]) {
-        newAnims[idMap[oldId]] = JSON.parse(JSON.stringify(anim));
+        newAnims[idMap[oldId]] = structuredClone(anim);
       }
     }
 
@@ -631,44 +635,47 @@ export const useLayerStore = create<LayerState>((set, get) => ({
   // -- Undo/Redo --
   saveSnapshot: () => {
     const state = get();
-    // プリコンポ内の場合、ルートに戻してからスナップショットを保存
-    if (state.compStack.length > 0) {
-      get().exitToRoot();
-    }
-    const { layers, animations } = get();
     useHistoryStore.getState().pushSnapshot({
-      layers: structuredClone(layers),
-      animations: structuredClone(animations),
+      layers: structuredClone(state.layers),
+      animations: structuredClone(state.animations),
+      compStack: structuredClone(state.compStack),
+      activeCompName: state.activeCompName,
     });
   },
 
   undo: () => {
-    // プリコンポ内の場合、まずルートに戻す
-    if (get().compStack.length > 0) {
-      get().exitToRoot();
-    }
-    const { layers, animations } = get();
+    const state = get();
     const snapshot = useHistoryStore.getState().undo({
-      layers: structuredClone(layers),
-      animations: structuredClone(animations),
+      layers: structuredClone(state.layers),
+      animations: structuredClone(state.animations),
+      compStack: structuredClone(state.compStack),
+      activeCompName: state.activeCompName,
     });
     if (snapshot) {
-      set({ layers: snapshot.layers, animations: snapshot.animations });
+      set({ 
+        layers: snapshot.layers, 
+        animations: snapshot.animations,
+        compStack: snapshot.compStack || [],
+        activeCompName: snapshot.activeCompName || null,
+      });
     }
   },
 
   redo: () => {
-    // プリコンポ内の場合、まずルートに戻す
-    if (get().compStack.length > 0) {
-      get().exitToRoot();
-    }
-    const { layers, animations } = get();
+    const state = get();
     const snapshot = useHistoryStore.getState().redo({
-      layers: structuredClone(layers),
-      animations: structuredClone(animations),
+      layers: structuredClone(state.layers),
+      animations: structuredClone(state.animations),
+      compStack: structuredClone(state.compStack),
+      activeCompName: state.activeCompName,
     });
     if (snapshot) {
-      set({ layers: snapshot.layers, animations: snapshot.animations });
+      set({ 
+        layers: snapshot.layers, 
+        animations: snapshot.animations,
+        compStack: snapshot.compStack || [],
+        activeCompName: snapshot.activeCompName || null,
+      });
     }
   },
 
@@ -689,7 +696,7 @@ export const useLayerStore = create<LayerState>((set, get) => ({
 
     // プリコンポ内のレイヤー: positionをプリコンポの中心からの相対座標に変換
     const innerLayers: Layer[] = selectedLayers.map(l => {
-      const cloned = JSON.parse(JSON.stringify(l)) as Layer;
+      const cloned = structuredClone(l);
       // 親がプリコンポ内のレイヤーでない場合はparentIdをリセット
       if (cloned.parentId && !selectedIds.includes(cloned.parentId)) {
         cloned.parentId = null;

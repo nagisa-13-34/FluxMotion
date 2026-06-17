@@ -108,3 +108,6 @@ export function resolveOverlayWorldTransform(
     rotation: rot + pw.rotation,
   };
 }
+
+// Backward-compatible export name used by hooks/UI code.
+export const resolveOverlayTransform = resolveOverlayWorldTransform;

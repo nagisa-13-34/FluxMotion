@@ -38,6 +38,28 @@ export interface TextStyle {
   letterSpacing: number;
 }
 
+/** ベジェ曲線の1つのポイント */
+export interface BezierPoint {
+  /** アンカーポイントの座標 [x, y] */
+  pos: [number, number];
+  /** インタンジェント（posからの相対座標）[x, y] */
+  in: [number, number];
+  /** アウトタンジェント（posからの相対座標）[x, y] */
+  out: [number, number];
+}
+
+/** マスクデータ */
+export interface Mask {
+  id: string;
+  name: string;
+  points: BezierPoint[];
+  closed: boolean;
+  inverted: boolean;
+  mode: 'add' | 'subtract' | 'intersect' | 'difference';
+  /** マスクの不透明度（0-100） */
+  opacity: number;
+}
+
 /** シェイプレイヤー用のデータ */
 export interface ShapeData {
   shapeType: ShapeType;
@@ -51,7 +73,9 @@ export interface ShapeData {
   /** 矩形の角丸 */
   cornerRadius?: number;
   /** パスのポイント */
-  points?: [number, number][];
+  points?: BezierPoint[];
+  /** パスが閉じているか（パスツール専用） */
+  closed?: boolean;
   /** シェイプの幅 */
   width?: number;
   /** シェイプの高さ */
@@ -95,6 +119,8 @@ export interface Layer {
   motionBlur?: boolean;
   /** プリコンポジション内のレイヤー（precompタイプのみ） */
   precompLayers?: Layer[];
+  /** マスク */
+  masks?: Mask[];
 }
 
 /** デフォルトのトランスフォーム */

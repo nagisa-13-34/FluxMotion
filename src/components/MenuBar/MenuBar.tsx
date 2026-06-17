@@ -200,6 +200,13 @@ export function MenuBar() {
                   }}>
                     フレームをPNGで書き出し <span className="shortcut">Ctrl+Shift+E</span>
                   </div>
+                  <div className="dropdown-separator" />
+                  <div className="dropdown-item" onClick={() => {
+                    useUIStore.getState().setShowExportDialog(true);
+                    setActiveMenu(null);
+                  }}>
+                    動画を書き出し (MP4)...
+                  </div>
                 </>
               )}
               {menu === 'レイヤー' && (

@@ -5,6 +5,27 @@ import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { useLayerStore } from '../../stores/layerStore';
 import { EASING_PRESETS } from '../../types/keyframe';
 
+// #region agent log
+const debugEasingLog = (hypothesisId: string, message: string, data: Record<string, unknown> = {}) => {
+  fetch('/__debug_ingest', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Debug-Session-Id': '262bcc',
+    },
+    body: JSON.stringify({
+      sessionId: '262bcc',
+      runId: 'pre-fix',
+      hypothesisId,
+      location: 'components/EasingEditor/EasingEditor.tsx',
+      message,
+      data,
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+};
+// #endregion
+
 type B4 = [number, number, number, number];
 interface Pt { x: number; y: number }
 
@@ -617,18 +638,33 @@ export function EasingEditor() {
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
+    let rafId = 0;
     const ro = new ResizeObserver((entries) => {
-      for (const e of entries) {
-        canvasSz.current = { w: Math.floor(e.contentRect.width), h: Math.floor(e.contentRect.height) };
-        // リサイズ時にアスペクト比を再計算してビューポート更新
+      const last = entries[entries.length - 1];
+      if (!last) return;
+      const w = Math.floor(last.contentRect.width);
+      const h = Math.floor(last.contentRect.height);
+
+      // 同値更新を避ける（ResizeObserver loop 対策）
+      if (canvasSz.current.w === w && canvasSz.current.h === h) return;
+      canvasSz.current = { w, h };
+
+      if (rafId) return;
+      debugEasingLog('H7', 'EasingEditor ResizeObserver fired', { w, h });
+      rafId = requestAnimationFrame(() => {
+        rafId = 0;
         const fit = computeFitView(anchorsRef.current, canvasAspect());
         targetView.current = fit;
         currentView.current = { ...fit };
         draw();
-      }
+        debugEasingLog('H7', 'EasingEditor ResizeObserver applied', { w, h });
+      });
     });
     ro.observe(el);
-    return () => ro.disconnect();
+    return () => {
+      ro.disconnect();
+      if (rafId) cancelAnimationFrame(rafId);
+    };
   }, [draw]);
 
   // ── ヒットテスト ──

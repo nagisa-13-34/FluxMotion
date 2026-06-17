@@ -1,4 +1,4 @@
-import type { Layer } from '../../types/layer';
+import type { Layer, BezierPoint, Mask } from '../../types/layer';
 import type { AnimatedProperty } from '../../types/keyframe';
 import { interpolateValue } from './keyframe';
 import { evaluateExpression } from './expression';
@@ -37,6 +37,8 @@ export class Renderer {
     this.canvas.height = height * dpr;
     // setTransformでリセットしてからスケールを適用（累積防止）
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    this.ctx.imageSmoothingEnabled = true;
+    this.ctx.imageSmoothingQuality = 'high';
   }
 
   /** 背景色設定 */
@@ -56,7 +58,7 @@ export class Renderer {
     layers: Layer[],
     currentFrame: number,
     animations?: Record<string, Record<string, AnimatedProperty>>,
-    options?: { disableMotionBlur?: boolean },
+    options?: { disableMotionBlur?: boolean; transparentBackground?: boolean; textOnly?: boolean },
   ) {
     const ctx = this.ctx;
 
@@ -65,8 +67,12 @@ export class Renderer {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     // 背景クリア
-    ctx.fillStyle = this._backgroundColor;
-    ctx.fillRect(0, 0, this.width, this.height);
+    if (options?.transparentBackground) {
+      ctx.clearRect(0, 0, this.width, this.height);
+    } else {
+      ctx.fillStyle = this._backgroundColor;
+      ctx.fillRect(0, 0, this.width, this.height);
+    }
 
     // ソロレイヤーの判定（いずれかがsolo=trueならsoloレイヤーのみ描画）
     const hasSoloLayer = layers.some(l => l.solo);
@@ -84,32 +90,46 @@ export class Renderer {
       const transform = this.resolveWorldTransform(layer, layers, currentFrame, animations);
 
        const renderContent = () => {
+        let masked = false;
+        if (layer.masks && layer.masks.length > 0) {
+          // this.ctx はモーションブラー時に mbCtx に差し替えられている可能性がある
+          const currentCtx = (this as any).ctx as CanvasRenderingContext2D;
+          currentCtx.save();
+          this.applyMasks(currentCtx, layer.masks);
+          masked = true;
+        }
+
         switch (layer.type) {
           case 'solid':
-            this.renderSolid(ctx, layer);
+            if (!options?.textOnly) this.renderSolid(ctx, layer);
             break;
           case 'text':
             this.renderText(ctx, layer, currentFrame, animations);
             break;
           case 'shape':
-            this.renderShape(ctx, layer, currentFrame, animations);
+            if (!options?.textOnly) this.renderShape(ctx, layer, currentFrame, animations);
             break;
           case 'image':
-            this.renderImage(ctx, layer);
+            if (!options?.textOnly) this.renderImage(ctx, layer);
             break;
           case 'video':
-            this.renderVideo(ctx, layer, currentFrame);
+            if (!options?.textOnly) this.renderVideo(ctx, layer, currentFrame);
             break;
           case 'precomp':
-            this.renderPrecomp(ctx, layer, currentFrame, animations, layers);
+            this.renderPrecomp(ctx, layer, currentFrame, animations, layers, options);
             break;
           case 'null':
           case 'adjustment':
             // ヌル・調整レイヤーは描画コンテンツなし
             break;
           default:
-            this.renderPlaceholder(ctx, layer);
+            if (!options?.textOnly) this.renderPlaceholder(ctx, layer);
             break;
+        }
+
+        if (masked) {
+          const currentCtx = (this as any).ctx as CanvasRenderingContext2D;
+          currentCtx.restore();
         }
       };
 
@@ -531,7 +551,7 @@ export class Renderer {
     const lineHeight = this.resolveNumericProp(layer.id, 'text.lineHeight', style.lineHeight, frame, animations);
     const letterSpacing = this.resolveNumericProp(layer.id, 'text.letterSpacing', style.letterSpacing, frame, animations);
 
-    ctx.font = `${fontWeight} ${fontSize}px "${style.fontFamily}", sans-serif`;
+    ctx.font = `${fontWeight} ${fontSize}px "${style.fontFamily}", "Noto Sans JP", sans-serif`;
     ctx.fillStyle = style.color;
     ctx.textAlign = style.textAlign;
     ctx.textBaseline = 'middle';
@@ -576,9 +596,10 @@ export class Renderer {
 
     const hasStroke = shape.stroke !== 'transparent' && strokeWidth > 0;
     if (hasStroke) {
-      ctx.strokeStyle = shape.stroke;
       ctx.lineWidth = strokeWidth;
+      ctx.strokeStyle = shape.stroke;
       ctx.lineCap = shape.strokeLineCap ?? 'butt';
+      ctx.lineJoin = (shape as any).strokeLineJoin ?? 'round';
     }
 
     const shapeW = shape.width ?? 200;
@@ -594,6 +615,80 @@ export class Renderer {
       case 'star':
         this.renderStar(ctx, 5, Math.min(shapeW, shapeH) / 2, Math.min(shapeW, shapeH) / 4.5, hasStroke);
         break;
+      case 'path':
+        if (shape.points && shape.points.length > 0) {
+          this.buildPath(ctx, shape.points, shape.closed ?? false);
+          ctx.fill();
+          if (hasStroke) ctx.stroke();
+        }
+        break;
+    }
+  }
+
+  /** ベジェパスを描画するユーティリティ */
+  private buildPath(ctx: CanvasRenderingContext2D, points: BezierPoint[], closed: boolean) {
+    if (!points || points.length === 0) return;
+    
+    ctx.beginPath();
+    ctx.moveTo(points[0].pos[0], points[0].pos[1]);
+
+    for (let i = 1; i < points.length; i++) {
+      const p1 = points[i - 1];
+      const p2 = points[i];
+      ctx.bezierCurveTo(
+        p1.pos[0] + p1.out[0], p1.pos[1] + p1.out[1],
+        p2.pos[0] + p2.in[0], p2.pos[1] + p2.in[1],
+        p2.pos[0], p2.pos[1]
+      );
+    }
+
+    if (closed && points.length > 1) {
+      const p1 = points[points.length - 1];
+      const p2 = points[0];
+      ctx.bezierCurveTo(
+        p1.pos[0] + p1.out[0], p1.pos[1] + p1.out[1],
+        p2.pos[0] + p2.in[0], p2.pos[1] + p2.in[1],
+        p2.pos[0], p2.pos[1]
+      );
+      ctx.closePath();
+    }
+  }
+
+  /** マスクの適用（クリッピング） */
+  private applyMasks(ctx: CanvasRenderingContext2D, masks: Mask[]) {
+    if (!masks || masks.length === 0) return;
+    
+    // 現在の仕様では 'add' のみの基本クリッピングをサポート
+    ctx.beginPath();
+    let hasPaths = false;
+    for (const mask of masks) {
+      if (mask.points && mask.points.length > 0) {
+        // パスをそのままつなげてクリッピングパスにする
+        ctx.moveTo(mask.points[0].pos[0], mask.points[0].pos[1]);
+        for (let i = 1; i < mask.points.length; i++) {
+          const p1 = mask.points[i - 1];
+          const p2 = mask.points[i];
+          ctx.bezierCurveTo(
+            p1.pos[0] + p1.out[0], p1.pos[1] + p1.out[1],
+            p2.pos[0] + p2.in[0], p2.pos[1] + p2.in[1],
+            p2.pos[0], p2.pos[1]
+          );
+        }
+        if (mask.closed && mask.points.length > 1) {
+          const p1 = mask.points[mask.points.length - 1];
+          const p2 = mask.points[0];
+          ctx.bezierCurveTo(
+            p1.pos[0] + p1.out[0], p1.pos[1] + p1.out[1],
+            p2.pos[0] + p2.in[0], p2.pos[1] + p2.in[1],
+            p2.pos[0], p2.pos[1]
+          );
+          ctx.closePath();
+        }
+        hasPaths = true;
+      }
+    }
+    if (hasPaths) {
+      ctx.clip();
     }
   }
 
@@ -733,6 +828,7 @@ export class Renderer {
     currentFrame: number,
     animations?: Record<string, Record<string, AnimatedProperty>>,
     allLayers?: Layer[],
+    options?: { disableMotionBlur?: boolean; transparentBackground?: boolean; textOnly?: boolean }
   ) {
     if (!layer.precompLayers || layer.precompLayers.length === 0) {
       this.renderPlaceholder(ctx, layer);
@@ -755,25 +851,25 @@ export class Renderer {
       const renderInnerContent = () => {
         switch (innerLayer.type) {
           case 'solid':
-            this.renderSolid(ctx, innerLayer);
+            if (!options?.textOnly) this.renderSolid(ctx, innerLayer);
             break;
           case 'text':
             this.renderText(ctx, innerLayer, currentFrame, animations);
             break;
           case 'shape':
-            this.renderShape(ctx, innerLayer, currentFrame, animations);
+            if (!options?.textOnly) this.renderShape(ctx, innerLayer, currentFrame, animations);
             break;
           case 'image':
-            this.renderImage(ctx, innerLayer);
+            if (!options?.textOnly) this.renderImage(ctx, innerLayer);
             break;
           case 'video':
-            this.renderVideo(ctx, innerLayer, currentFrame);
+            if (!options?.textOnly) this.renderVideo(ctx, innerLayer, currentFrame);
             break;
           case 'precomp':
-            this.renderPrecomp(ctx, innerLayer, currentFrame, animations, allLayers);
+            this.renderPrecomp(ctx, innerLayer, currentFrame, animations, allLayers, options);
             break;
           default:
-            this.renderPlaceholder(ctx, innerLayer);
+            if (!options?.textOnly) this.renderPlaceholder(ctx, innerLayer);
             break;
         }
       };
@@ -792,7 +888,7 @@ export class Renderer {
     ctx.fillStyle = 'rgba(100, 100, 100, 0.3)';
     ctx.fillRect(-100, -50, 200, 100);
     ctx.fillStyle = '#999';
-    ctx.font = '14px Inter';
+    ctx.font = '14px "Inter", "Noto Sans JP", sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(`[${layer.type}]`, 0, 0);

@@ -17,6 +17,8 @@ type AnimationMap = Record<string, Record<string, AnimatedProperty>>;
 interface HistorySnapshot {
   layers: Layer[];
   animations: AnimationMap;
+  compStack?: any[]; // LayerStore's CompStackEntry array
+  activeCompName?: string | null;
 }
 
 interface HistoryState {

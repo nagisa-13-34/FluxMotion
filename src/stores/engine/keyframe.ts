@@ -8,12 +8,41 @@ import type { Keyframe, AnimatedProperty } from '../../types/keyframe';
 
 /** ベジェイージング関数のキャッシュ */
 const easingCache = new Map<string, (t: number) => number>();
+const MAX_CACHE_SIZE = 1000;
+
+export const EASING_PRESETS = {
+  linear: [0, 0, 1, 1] as [number, number, number, number],
+  easeIn: [0.42, 0, 1, 1] as [number, number, number, number],
+  easeOut: [0, 0, 0.58, 1] as [number, number, number, number],
+  easeInOut: [0.42, 0, 0.58, 1] as [number, number, number, number],
+};
+
+/** 小数点以下を丸める（キャッシュヒット率向上） */
+function roundPoints(points: [number, number, number, number]): [number, number, number, number] {
+  return [
+    Math.round(points[0] * 1000) / 1000,
+    Math.round(points[1] * 1000) / 1000,
+    Math.round(points[2] * 1000) / 1000,
+    Math.round(points[3] * 1000) / 1000,
+  ];
+}
 
 /** ベジェイージング関数を取得（キャッシュ付き） */
 function getEasing(points: [number, number, number, number]): (t: number) => number {
-  const key = points.join(',');
+  const rounded = roundPoints(points);
+  const key = rounded.join(',');
   if (!easingCache.has(key)) {
-    easingCache.set(key, BezierEasing(points[0], points[1], points[2], points[3]));
+    // キャッシュサイズ上限を超えたら古いものを削除
+    if (easingCache.size >= MAX_CACHE_SIZE) {
+      const firstKey = easingCache.keys().next().value;
+      if (firstKey) easingCache.delete(firstKey);
+    }
+    easingCache.set(key, BezierEasing(rounded[0], rounded[1], rounded[2], rounded[3]));
+  } else {
+    // アクセスされたら最新として扱う（簡易LRU：削除して再追加）
+    const fn = easingCache.get(key)!;
+    easingCache.delete(key);
+    easingCache.set(key, fn);
   }
   return easingCache.get(key)!;
 }

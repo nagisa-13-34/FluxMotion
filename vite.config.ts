@@ -9,6 +9,19 @@ export default defineConfig({
   server: {
     port: 1420,
     strictPort: true,
+    proxy: {
+      // Avoid CORS by proxying debug ingest through dev server
+      '/__debug_ingest': {
+        target: 'http://127.0.0.1:7479',
+        changeOrigin: true,
+        secure: false,
+        rewrite: (path) =>
+          path.replace(
+            /^\/__debug_ingest/,
+            '/ingest/c97dce33-c9ce-45de-8754-fb78786e969c',
+          ),
+      },
+    },
   },
 
   // Tauri の環境変数プレフィクスを許可

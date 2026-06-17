@@ -10,6 +10,7 @@ import { Timeline } from './components/Timeline/Timeline';
 import { Properties } from './components/Properties/Properties';
 import { EasingEditor } from './components/EasingEditor/EasingEditor';
 import { ContextMenu } from './components/common/ContextMenu';
+import { ExportDialog } from './components/Export/ExportDialog';
 import { useTimelineStore } from './stores/timelineStore';
 import { useProjectStore } from './stores/projectStore';
 import { useUIStore, PANEL_IDS } from './stores/uiStore';
@@ -47,16 +48,23 @@ export default function App() {
         renderCallbackRef.current?.();
       },
       () => useTimelineStore.getState().currentFrame,
-      (frame) => useTimelineStore.getState().setCurrentFrame(frame),
-      () => useProjectStore.getState().totalFrames(),
-      () => {
-        const tl = useTimelineStore.getState();
-        return { inFrame: tl.workAreaIn, outFrame: tl.workAreaOut };
-      },
+      (frame) => useTimelineStore.getState().setCurrentFrame(frame)
     );
     animLoopRef.current = loop;
     return () => loop.stop();
   }, [settings.fps]);
+
+  // ループ範囲の同期
+  const workAreaIn = useTimelineStore((s) => s.workAreaIn);
+  const workAreaOut = useTimelineStore((s) => s.workAreaOut);
+  useEffect(() => {
+    if (animLoopRef.current) {
+      animLoopRef.current.setLoopArea(
+        workAreaIn ?? 0,
+        workAreaOut ?? totalFrames()
+      );
+    }
+  }, [workAreaIn, workAreaOut, totalFrames]);
 
   // 再生/停止の同期
   useEffect(() => {
@@ -397,6 +405,7 @@ export default function App() {
         </LayoutContext.Provider>
       </div>
       <ContextMenu />
+      <ExportDialog />
     </div>
   );
 }

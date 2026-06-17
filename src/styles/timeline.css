@@ -70,11 +70,17 @@
 }
 
 /* ---- Layer Row ---- */
+.layer-row-wrap {
+  min-height: var(--timeline-track-height);
+  flex-shrink: 0;
+}
 .layer-row {
   display: flex;
   align-items: center;
   height: var(--timeline-track-height);
+  min-height: var(--timeline-track-height);
   padding: 0 var(--space-sm);
+  flex-shrink: 0;
   gap: var(--space-xs);
   border-bottom: 1px solid var(--color-border-subtle);
   cursor: pointer;
@@ -235,6 +241,8 @@
 
 .track-row {
   height: var(--timeline-track-height);
+  min-height: var(--timeline-track-height);
+  flex-shrink: 0;
   position: relative;
   border-bottom: 1px solid var(--color-border-subtle);
 }

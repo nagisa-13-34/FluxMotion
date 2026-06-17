@@ -6,6 +6,27 @@ import { useUIStore } from '../../stores/uiStore';
 import type { Keyframe } from '../../types/keyframe';
 import { EASING_PRESETS } from '../../types/keyframe';
 
+// #region agent log
+const debugTimelineLog = (hypothesisId: string, message: string, data: Record<string, unknown> = {}) => {
+  fetch('/__debug_ingest', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Debug-Session-Id': '262bcc',
+    },
+    body: JSON.stringify({
+      sessionId: '262bcc',
+      runId: 'pre-fix',
+      hypothesisId,
+      location: 'components/Timeline/Timeline.tsx',
+      message,
+      data,
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+};
+// #endregion
+
 export function Timeline() {
   const layers = useLayerStore((s) => s.layers);
   const selectedLayerIds = useLayerStore((s) => s.selectedLayerIds);
@@ -17,10 +38,8 @@ export function Timeline() {
   const removeKeyframe = useLayerStore((s) => s.removeKeyframe);
   const animations = useLayerStore((s) => s.animations);
   const enterPrecomp = useLayerStore((s) => s.enterPrecomp);
-  const exitPrecomp = useLayerStore((s) => s.exitPrecomp);
   const exitToRoot = useLayerStore((s) => s.exitToRoot);
   const compStack = useLayerStore((s) => s.compStack);
-  const activeCompName = useLayerStore((s) => s.activeCompName);
 
   const expandedLayerIds = useUIStore((s) => s.expandedLayerIds);
   const toggleExpandLayer = useUIStore((s) => s.toggleExpandLayer);
@@ -29,6 +48,7 @@ export function Timeline() {
 
   const currentFrame = useTimelineStore((s) => s.currentFrame);
   const setCurrentFrame = useTimelineStore((s) => s.setCurrentFrame);
+  const isPlaying = useTimelineStore((s) => s.isPlaying);
   const zoom = useTimelineStore((s) => s.zoom);
   const setZoom = useTimelineStore((s) => s.setZoom);
   const workAreaIn = useTimelineStore((s) => s.workAreaIn);
@@ -132,16 +152,42 @@ export function Timeline() {
       setNavScrollLeft(0);
     }
 
+    // ResizeObserver のコールバック内で scrollLeft / setState を即時に行うと
+    // ブラウザが ResizeObserver loop エラーを出すことがあるため rAF でまとめて適用する
+    let rafId = 0;
     const ro = new ResizeObserver(() => {
-      if (!userZoomedRef.current) {
-        setZoom(calcFitZoom());
-        el.scrollLeft = 0;
-        setNavScrollLeft(0);
-      }
+      if (userZoomedRef.current) return;
+      if (rafId) return;
+      debugTimelineLog('H6', 'Timeline ResizeObserver fired', {
+        clientWidth: el.clientWidth,
+        clientHeight: el.clientHeight,
+        scrollLeft: el.scrollLeft,
+        navScrollLeft,
+        storeZoom: useTimelineStore.getState().zoom,
+      });
+      rafId = requestAnimationFrame(() => {
+        rafId = 0;
+        if (userZoomedRef.current) return;
+        const nextZoom = calcFitZoom();
+        // 同値更新での無限ループを避ける
+        if (Math.abs(nextZoom - useTimelineStore.getState().zoom) > 0.001) {
+          setZoom(nextZoom);
+        }
+        if (el.scrollLeft !== 0) el.scrollLeft = 0;
+        if (navScrollLeft !== 0) setNavScrollLeft(0);
+        debugTimelineLog('H6', 'Timeline ResizeObserver applied', {
+          nextZoom,
+          appliedScrollLeft: el.scrollLeft,
+          navScrollLeftAfter: 0,
+        });
+      });
     });
     ro.observe(el);
-    return () => ro.disconnect();
-  }, [calcFitZoom, setZoom]);
+    return () => {
+      ro.disconnect();
+      if (rafId) cancelAnimationFrame(rafId);
+    };
+  }, [calcFitZoom, setZoom, navScrollLeft]);
 
 
 
@@ -442,6 +488,24 @@ export function Timeline() {
   }, []);
 
   // ── 再生時オートスクロール（全体表示のため不要だが将来用に残す） ──
+  useEffect(() => {
+    if (!isPlaying) return;
+    const el = trackContainerRef.current;
+    if (!el) return;
+
+    const playheadX = currentFrame * zoom;
+    const viewStart = el.scrollLeft;
+    const viewEnd = viewStart + el.clientWidth;
+
+    // プレイヘッドが右端（または少し余裕を持たせた領域）を超えたらスクロール
+    if (playheadX > viewEnd - 20) {
+      el.scrollLeft = playheadX - 50; // 少し左から開始
+      setNavScrollLeft(el.scrollLeft);
+    } else if (playheadX < viewStart) {
+      el.scrollLeft = Math.max(0, playheadX - 50);
+      setNavScrollLeft(el.scrollLeft);
+    }
+  }, [currentFrame, isPlaying, zoom]);
 
   // ルーラーの目盛り生成
   const renderRuler = () => {
