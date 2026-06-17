@@ -80,10 +80,11 @@ export default function App() {
   // キーボードショートカット
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // input/textarea の中では無視
       if (
         e.target instanceof HTMLInputElement ||
-        e.target instanceof HTMLTextAreaElement
+        e.target instanceof HTMLTextAreaElement ||
+        (e.target instanceof HTMLElement && e.target.isContentEditable) ||
+        useUIStore.getState().editingLayerId !== null
       ) return;
 
       switch (e.code) {

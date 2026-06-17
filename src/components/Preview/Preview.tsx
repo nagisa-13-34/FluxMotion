@@ -2,7 +2,8 @@ import { useEffect, useRef, useCallback, useState } from 'react';
 import { useProjectStore } from '../../stores/projectStore';
 import { useLayerStore } from '../../stores/layerStore';
 import { useTimelineStore } from '../../stores/timelineStore';
-import { useUIStore } from '../../stores/uiStore';
+import { useUIStore, PANEL_IDS } from '../../stores/uiStore';
+import { useContextMenu } from '../../hooks/useContextMenu';
 import { Renderer } from '../../stores/engine/renderer';
 import { WebGPURenderer, isWebGPUSupported } from '../../stores/engine/webgpuRenderer';
 import { resolveOverlayWorldTransform } from '../../stores/engine/overlayTransform';
@@ -50,17 +51,27 @@ export function Preview({ onRenderReady }: PreviewProps) {
   const setViewportZoom = useUIStore((s) => s.setViewportZoom);
   const activeTool = useUIStore((s) => s.activeTool);
   const activeShapeType = useUIStore((s) => s.activeShapeType);
-  const isPlaying = useTimelineStore((s) => s.isPlaying);
   const currentFrame = useTimelineStore((s) => s.currentFrame);
   const ui = useUIStore();
+  const contextMenu = useContextMenu();
 
   // テキスト編集のインライン状態
   const [editingLayerId, setEditingLayerId] = useState<string | null>(null);
   const [editText, setEditText] = useState('');
   const textInputRef = useRef<HTMLTextAreaElement>(null);
 
-  // スナップライン表示
-  const [snapLines, setSnapLines] = useState<{ axis: 'x' | 'y'; pos: number }[]>([]);
+  // スナップライン描画用ヘルパー
+  const updateSnapLinesDOM = (lines: { axis: 'x' | 'y'; pos: number }[]) => {
+    const group = document.getElementById('snap-lines-group');
+    if (!group) return;
+    const height = settings.height;
+    const width = settings.width;
+    group.innerHTML = lines.map(sl => 
+      sl.axis === 'x' 
+        ? `<line x1="${sl.pos}" y1="0" x2="${sl.pos}" y2="${height}" stroke="#f0f" stroke-width="1" />`
+        : `<line x1="0" y1="${sl.pos}" x2="${width}" y2="${sl.pos}" stroke="#f0f" stroke-width="1" />`
+    ).join('');
+  };
 
   // レンダラーモード
   const [rendererMode, setRendererMode] = useState<'canvas2d' | 'webgpu'>('canvas2d');
@@ -148,7 +159,7 @@ export function Preview({ onRenderReady }: PreviewProps) {
     };
   }, [rendererMode, settings.width, settings.height, settings.backgroundColor]);
 
-  const { localLayerOverrides, handlePenMouseDown, penDraw } = usePenTool({
+  const { localLayerOverrides, localOverridesRef, handlePenMouseDown, penDraw } = usePenTool({
     scale,
     containerRef
   });
@@ -170,19 +181,22 @@ export function Preview({ onRenderReady }: PreviewProps) {
   // 描画関数
   const render = useCallback(() => {
     const state = useLayerStore.getState();
+    const uiState = useUIStore.getState();
     const allLayers = state.layers;
     const animations = state.animations;
     const frame = useTimelineStore.getState().currentFrame;
-    const editId = editingLayerId;
+    const editId = uiState.editingLayerId;
+    const rMode = uiState.rendererMode;
+    const localOverrides = localOverridesRef.current;
 
     // オプティミスティックUIのオーバーライドを適用
     const overridenLayers = allLayers.map(l => {
-      if (localLayerOverrides[l.id]) {
+      if (localOverrides[l.id]) {
         return {
           ...l,
-          ...localLayerOverrides[l.id],
-          shapeData: localLayerOverrides[l.id].shapeData 
-            ? { ...l.shapeData!, ...localLayerOverrides[l.id].shapeData! } 
+          ...localOverrides[l.id],
+          shapeData: localOverrides[l.id].shapeData 
+            ? { ...l.shapeData!, ...localOverrides[l.id].shapeData! } 
             : l.shapeData
         };
       }
@@ -193,7 +207,7 @@ export function Preview({ onRenderReady }: PreviewProps) {
       ? overridenLayers.filter(l => l.id !== editId)
       : overridenLayers;
 
-    if (rendererMode === 'webgpu' && gpuRendererRef.current?.isReady) {
+    if (rMode === 'webgpu' && gpuRendererRef.current?.isReady) {
       gpuRendererRef.current.renderFrame(renderLayers, frame, animations);
       if (rendererRef.current) {
         const playing = useTimelineStore.getState().isPlaying;
@@ -207,7 +221,7 @@ export function Preview({ onRenderReady }: PreviewProps) {
       const playing = useTimelineStore.getState().isPlaying;
       rendererRef.current.renderFrame(renderLayers, frame, animations, { disableMotionBlur: !playing });
     }
-  }, [editingLayerId, rendererMode, localLayerOverrides]);
+  }, []); 
 
   useEffect(() => {
     onRenderReady(render);
@@ -391,15 +405,6 @@ export function Preview({ onRenderReady }: PreviewProps) {
   const resolveOverlayTransform = (layer: Layer) =>
     resolveOverlayWorldTransform(layer, layers, currentFrame, animations);
 
-  // レンダラー切り替え
-  const toggleRenderer = () => {
-    if (rendererMode === 'canvas2d' && gpuAvailable) {
-      setRendererMode('webgpu');
-    } else {
-      setRendererMode('canvas2d');
-    }
-  };
-
   return (
     <div className="viewport">
       <div
@@ -461,21 +466,15 @@ export function Preview({ onRenderReady }: PreviewProps) {
           )}
 
           {/* スナップライン */}
-          {snapLines.length > 0 && (
-            <svg
-              style={{
-                position: 'absolute', top: 0, left: 0, pointerEvents: 'none', zIndex: 10000
-              }}
-              width={canvasWidth} height={canvasHeight}
-              viewBox={`0 0 ${settings.width} ${settings.height}`}
-            >
-              {snapLines.map((sl, i) =>
-                sl.axis === 'x'
-                  ? <line key={i} x1={sl.pos} y1="0" x2={sl.pos} y2={settings.height} stroke="#f0f" strokeWidth="1" />
-                  : <line key={i} x1="0" y1={sl.pos} x2={settings.width} y2={sl.pos} stroke="#f0f" strokeWidth="1" />
-              )}
-            </svg>
-          )}
+          <svg
+            style={{
+              position: 'absolute', top: 0, left: 0, pointerEvents: 'none', zIndex: 10000
+            }}
+            width={canvasWidth} height={canvasHeight}
+            viewBox={`0 0 ${settings.width} ${settings.height}`}
+          >
+            <g id="snap-lines-group"></g>
+          </svg>
 
           {/* シェイプ描画プレビュー */}
           {shapeDraw && (() => {
@@ -531,12 +530,6 @@ export function Preview({ onRenderReady }: PreviewProps) {
           {/* ペンツール時のパス・マスクポイントプレビュー */}
           {activeTool === 'pen' && (() => {
             const store = useLayerStore.getState();
-            debugPreviewLog('H8', 'pen tool render', {
-              penDrawPresent: !!penDraw,
-              penDrawLayerId: penDraw?.layerId,
-              selectedLayerIdsCount: store.selectedLayerIds.length,
-              pointDragPresent: false,
-            });
             const targetLayerIds = penDraw ? [penDraw.layerId] : store.selectedLayerIds;
             return targetLayerIds.map(layerId => {
               const layer = mergedLayers.find(l => l.id === layerId);
@@ -677,6 +670,14 @@ export function Preview({ onRenderReady }: PreviewProps) {
                   transform: resolved.rotation !== 0 ? `rotate(${resolved.rotation}deg)` : undefined,
                   transformOrigin: `${-xOffset}px ${-yOffset}px`,
                 }}
+                onContextMenu={(e) => {
+                  contextMenu.show(e, [
+                    {
+                      label: 'コンポジション設定...',
+                      action: () => useUIStore.getState().setShowCompSettings(true)
+                    }
+                  ]);
+                }}
                 onMouseDown={(e) => {
                   if (e.button !== 0 || isEditing || layer.locked) return;
                   e.stopPropagation();
@@ -724,7 +725,7 @@ export function Preview({ onRenderReady }: PreviewProps) {
                         if (Math.abs(newY - nearGridY) < snapThreshold) { newY = nearGridY; snappedLines.push({ axis: 'y', pos: nearGridY }); }
                       }
                     }
-                    setSnapLines(snappedLines);
+                    updateSnapLinesDOM(snappedLines);
 
                     const newPos: [number, number] = [newX, newY];
                     const store = useLayerStore.getState();
@@ -766,7 +767,7 @@ export function Preview({ onRenderReady }: PreviewProps) {
 
                   const onUp = () => {
                     document.body.style.cursor = '';
-                    setSnapLines([]);
+                    updateSnapLinesDOM([]);
                     window.removeEventListener('mousemove', onMove);
                     window.removeEventListener('mouseup', onUp);
                     if (!moved && alreadySelected && !e.ctrlKey && !e.metaKey) {

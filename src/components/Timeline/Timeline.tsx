@@ -5,6 +5,7 @@ import { useProjectStore } from '../../stores/projectStore';
 import { useUIStore } from '../../stores/uiStore';
 import type { Keyframe } from '../../types/keyframe';
 import { EASING_PRESETS } from '../../types/keyframe';
+import { useContextMenu } from '../../hooks/useContextMenu';
 
 // #region agent log
 const debugTimelineLog = (hypothesisId: string, message: string, data: Record<string, unknown> = {}) => {
@@ -44,7 +45,7 @@ export function Timeline() {
   const expandedLayerIds = useUIStore((s) => s.expandedLayerIds);
   const toggleExpandLayer = useUIStore((s) => s.toggleExpandLayer);
   const showOnlyKeyframed = useUIStore((s) => s.showOnlyKeyframed);
-  const showContextMenu = useUIStore((s) => s.showContextMenu);
+  const contextMenu = useContextMenu();
 
   const currentFrame = useTimelineStore((s) => s.currentFrame);
   const setCurrentFrame = useTimelineStore((s) => s.setCurrentFrame);
@@ -362,7 +363,12 @@ export function Timeline() {
   useEffect(() => {
     if (selectedKfs.length === 0) return;
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (
+        e.target instanceof HTMLInputElement || 
+        e.target instanceof HTMLTextAreaElement ||
+        (e.target instanceof HTMLElement && e.target.isContentEditable) ||
+        useUIStore.getState().editingLayerId !== null
+      ) return;
 
       // Delete/Backspace: キーフレーム削除
       if (e.code === 'Delete' || e.code === 'Backspace') {
@@ -450,9 +456,9 @@ export function Timeline() {
       userZoomedRef.current = newZoom > fitZoom + 0.01;
 
       // プレイヘッドのビューポート内位置を保持
-      const playheadOldX = currentFrame * zoom;
+      const playheadOldX = Math.round(currentFrame * zoom);
       const viewOffset = playheadOldX - el.scrollLeft;
-      const playheadNewX = currentFrame * newZoom;
+      const playheadNewX = Math.round(currentFrame * newZoom);
       pendingScrollLeftRef.current = Math.max(0, playheadNewX - viewOffset);
       setNavScrollLeft(pendingScrollLeftRef.current);
 
@@ -786,12 +792,10 @@ export function Timeline() {
                 className={`layer-row${selectedLayerIds.includes(layer.id) ? ' selected' : ''}${dragOverIndex === idx ? ' drag-over' : ''}${dragLayerIndex === idx ? ' dragging' : ''}${layer.parentId ? ' has-parent' : ''}`}
                 onClick={(e) => selectLayer(layer.id, e.ctrlKey || e.metaKey)}
                 onContextMenu={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
                   if (!selectedLayerIds.includes(layer.id)) selectLayer(layer.id);
                   const store = useLayerStore.getState();
                   const tl = useTimelineStore.getState();
-                  showContextMenu(e.clientX, e.clientY, [
+                  contextMenu.show(e, [
                     { label: '複製', shortcut: 'Ctrl+D', action: () => { store.saveSnapshot(); store.duplicateLayer(layer.id); } },
                     { label: '削除', shortcut: 'Delete', action: () => { store.saveSnapshot(); store.removeLayer(layer.id); }, separator: true },
                     { label: '分割', shortcut: 'Ctrl+Shift+D', action: () => { store.splitLayer(tl.currentFrame); }, separator: true },
@@ -811,7 +815,7 @@ export function Timeline() {
                       ['#3182CE', 'ブルー'], ['#805AD5', 'パープル'],
                       ['#D53F8C', 'ピンク'], ['#718096', 'グレー'],
                     ];
-                    showContextMenu(e.clientX, e.clientY, [
+                    contextMenu.show(e, [
                       ...presetColors.map(([color, name]) => ({
                         label: name,
                         color,
@@ -1099,12 +1103,10 @@ export function Timeline() {
                                 });
                               }}
                               onContextMenu={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
                                 const kfSel = { layerId: layer.id, propName, time: kf.time };
                                 if (!selected) setSelectedKfs([kfSel]);
                                 const targetKfs = selected ? selectedKfs : [kfSel];
-                                useUIStore.getState().showContextMenu(e.clientX, e.clientY, [
+                                contextMenu.show(e, [
                                   {
                                     label: `削除 (${targetKfs.length})`,
                                     shortcut: 'Del',

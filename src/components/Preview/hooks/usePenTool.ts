@@ -570,6 +570,7 @@ export function usePenTool({ scale, containerRef }: UsePenToolProps) {
     penDraw,
     pointDrag,
     localLayerOverrides,
+    localOverridesRef,
     handlePenMouseDown
   };
 }
