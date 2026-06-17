@@ -146,33 +146,9 @@ export function Preview({ onRenderReady }: PreviewProps) {
     };
   }, [rendererMode, settings.width, settings.height, settings.backgroundColor]);
 
-  // ワールド座標 → ローカル座標変換 (フックへ渡す用)
-  const getWorldToLocal = useCallback((layer: Layer, worldX: number, worldY: number): [number, number] => {
-    const resolved = resolveOverlayWorldTransform(layer, layers, currentFrame, animations);
-    const dx = worldX - resolved.position[0];
-    const dy = worldY - resolved.position[1];
-    const rot = (resolved.rotation * Math.PI) / 180;
-    const sx = resolved.scale[0] / 100;
-    const sy = resolved.scale[1] / 100;
-    
-    // 逆回転
-    const cos = Math.cos(-rot);
-    const sin = Math.sin(-rot);
-    const rx = dx * cos - dy * sin;
-    const ry = dx * sin + dy * cos;
-    
-    // 逆スケール
-    const lx = sx !== 0 ? rx / sx : 0;
-    const ly = sy !== 0 ? ry / sy : 0;
-    
-    return [lx + resolved.anchorPoint[0], ly + resolved.anchorPoint[1]];
-  }, [layers, currentFrame, animations]);
-
   const { localLayerOverrides, handlePenMouseDown, penDraw } = usePenTool({
     scale,
-    containerRef,
-    getWorldToLocal,
-    resolveOverlayTransform: (layer) => resolveOverlayWorldTransform(layer, layers, currentFrame, animations)
+    containerRef
   });
 
   // レンダリング用のマージされたレイヤー配列

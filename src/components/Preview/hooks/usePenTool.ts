@@ -1,17 +1,21 @@
 import { useState, useEffect, useCallback, RefObject, useRef } from 'react';
 import { useLayerStore } from '../../../stores/layerStore';
+import { useTimelineStore } from '../../../stores/timelineStore';
 import { useUIStore } from '../../../stores/uiStore';
+import { resolveOverlayWorldTransform } from '../../../stores/engine/overlayTransform';
 import type { BezierPoint, Layer } from '../../../types/layer';
 import { generateId, createDefaultTransform } from '../../../types/layer';
+
+const HIT_TEST_RADIUS_HANDLE = 6;
+const HIT_TEST_RADIUS_POS = 8;
+const SNAP_CLOSE_RADIUS = 10;
 
 export interface UsePenToolProps {
   scale: number;
   containerRef: RefObject<HTMLDivElement>;
-  getWorldToLocal: (layer: Layer, worldX: number, worldY: number) => [number, number];
-  resolveOverlayTransform: (layer: Layer) => any;
 }
 
-export function usePenTool({ scale, containerRef, getWorldToLocal, resolveOverlayTransform }: UsePenToolProps) {
+export function usePenTool({ scale, containerRef }: UsePenToolProps) {
   const activeTool = useUIStore((s) => s.activeTool);
   const setTool = useUIStore((s) => s.setTool);
 
@@ -66,11 +70,32 @@ export function usePenTool({ scale, containerRef, getWorldToLocal, resolveOverla
     }
 
     let hitPoint: { layerId: string; maskId?: string; pointIndex: number; handleType: 'pos' | 'in' | 'out' } | null = null;
+    
+    // ヘルパー: ワールド座標からローカル座標への変換
+    const getWorldToLocal = (layer: Layer, worldX: number, worldY: number): [number, number] => {
+      const frame = useTimelineStore.getState().currentFrame;
+      const animations = useLayerStore.getState().animations;
+      const layers = useLayerStore.getState().layers;
+      const resolved = resolveOverlayWorldTransform(layer, layers, frame, animations);
+      const dx = worldX - resolved.position[0];
+      const dy = worldY - resolved.position[1];
+      const rot = (resolved.rotation * Math.PI) / 180;
+      const sx = resolved.scale[0] / 100;
+      const sy = resolved.scale[1] / 100;
+      const cos = Math.cos(-rot);
+      const sin = Math.sin(-rot);
+      const rx = dx * cos - dy * sin;
+      const ry = dx * sin + dy * cos;
+      const lx = sx !== 0 ? rx / sx : 0;
+      const ly = sy !== 0 ? ry / sy : 0;
+      return [lx + resolved.anchorPoint[0], ly + resolved.anchorPoint[1]];
+    };
     for (const layerId of store.selectedLayerIds) {
       const layer = store.layers.find(l => l.id === layerId);
       if (!layer) continue;
       
-      const resolved = resolveOverlayTransform(layer);
+      const frame = useTimelineStore.getState().currentFrame;
+      const resolved = resolveOverlayWorldTransform(layer, store.layers, frame, store.animations);
       const sx = resolved.scale[0] / 100;
       const sy = resolved.scale[1] / 100;
       const rot = (resolved.rotation * Math.PI) / 180;
@@ -96,15 +121,15 @@ export function usePenTool({ scale, containerRef, getWorldToLocal, resolveOverla
           const [ix, iy] = l2s(p.pos[0] + p.in[0], p.pos[1] + p.in[1]);
           const [ox, oy] = l2s(p.pos[0] + p.out[0], p.pos[1] + p.out[1]);
           
-          if ((p.in[0] !== 0 || p.in[1] !== 0) && Math.hypot(screenX - ix, screenY - iy) < 6) {
+          if ((p.in[0] !== 0 || p.in[1] !== 0) && Math.hypot(screenX - ix, screenY - iy) < HIT_TEST_RADIUS_HANDLE) {
             hitPoint = { layerId: layer.id, maskId, pointIndex: i, handleType: 'in' };
             return true;
           }
-          if ((p.out[0] !== 0 || p.out[1] !== 0) && Math.hypot(screenX - ox, screenY - oy) < 6) {
+          if ((p.out[0] !== 0 || p.out[1] !== 0) && Math.hypot(screenX - ox, screenY - oy) < HIT_TEST_RADIUS_HANDLE) {
             hitPoint = { layerId: layer.id, maskId, pointIndex: i, handleType: 'out' };
             return true;
           }
-          if (Math.hypot(screenX - px, screenY - py) < 8) {
+          if (Math.hypot(screenX - px, screenY - py) < HIT_TEST_RADIUS_POS) {
             hitPoint = { layerId: layer.id, maskId, pointIndex: i, handleType: 'pos' };
             return true;
           }
@@ -199,7 +224,8 @@ export function usePenTool({ scale, containerRef, getWorldToLocal, resolveOverla
         
         if (points.length > 0) {
           const firstP = points[0];
-          const resolved = resolveOverlayTransform(layer);
+          const frame = useTimelineStore.getState().currentFrame;
+          const resolved = resolveOverlayWorldTransform(layer, store.layers, frame, store.animations);
           const sx = resolved.scale[0] / 100;
           const sy = resolved.scale[1] / 100;
           const rot = (resolved.rotation * Math.PI) / 180;
@@ -219,7 +245,7 @@ export function usePenTool({ scale, containerRef, getWorldToLocal, resolveOverla
           const [fx, fy] = l2s(firstP.pos[0], firstP.pos[1]);
           const screenDist = Math.hypot(screenX - fx, screenY - fy);
 
-          if (screenDist < 10) {
+          if (screenDist < SNAP_CLOSE_RADIUS) {
             store.saveSnapshot();
             if (currentPenDraw.maskId && layer.masks) {
               const newMasks = layer.masks.map(m => m.id === currentPenDraw!.maskId ? { ...m, closed: true } : m);
@@ -314,7 +340,7 @@ export function usePenTool({ scale, containerRef, getWorldToLocal, resolveOverla
         setPenDraw({ ...currentPenDraw, currentIndex: newIndex, isDragging: true });
       }
     }
-  }, [activeTool, scale, penDraw, getWorldToLocal]);
+  }, [activeTool, scale, penDraw]);
 
   // 新規ポイント追加時のドラッグ
   useEffect(() => {
@@ -331,6 +357,26 @@ export function usePenTool({ scale, containerRef, getWorldToLocal, resolveOverla
       const store = useLayerStore.getState();
       const layer = store.layers.find(l => l.id === penDraw.layerId);
       if (!layer) return;
+
+      const frame = useTimelineStore.getState().currentFrame;
+      const animations = store.animations;
+      const layers = store.layers;
+      
+      const getWorldToLocal = (l: Layer, worldX: number, worldY: number): [number, number] => {
+        const resolved = resolveOverlayWorldTransform(l, layers, frame, animations);
+        const dx = worldX - resolved.position[0];
+        const dy = worldY - resolved.position[1];
+        const rot = (resolved.rotation * Math.PI) / 180;
+        const sx = resolved.scale[0] / 100;
+        const sy = resolved.scale[1] / 100;
+        const cos = Math.cos(-rot);
+        const sin = Math.sin(-rot);
+        const rx = dx * cos - dy * sin;
+        const ry = dx * sin + dy * cos;
+        const lx = sx !== 0 ? rx / sx : 0;
+        const ly = sy !== 0 ? ry / sy : 0;
+        return [lx + resolved.anchorPoint[0], ly + resolved.anchorPoint[1]];
+      };
 
       const [lx, ly] = getWorldToLocal(layer, compX, compY);
 
@@ -383,7 +429,7 @@ export function usePenTool({ scale, containerRef, getWorldToLocal, resolveOverla
       window.removeEventListener('mousemove', handleMove);
       window.removeEventListener('mouseup', handleUp);
     };
-  }, [activeTool, penDraw, scale, getWorldToLocal, containerRef]);
+  }, [activeTool, penDraw, scale, containerRef]);
 
   // 既存ポイントのドラッグ処理
   useEffect(() => {
@@ -402,6 +448,26 @@ export function usePenTool({ scale, containerRef, getWorldToLocal, resolveOverla
       const store = useLayerStore.getState();
       const layer = store.layers.find(l => l.id === pointDrag.layerId);
       if (!layer) return;
+
+      const frame = useTimelineStore.getState().currentFrame;
+      const animations = store.animations;
+      const layers = store.layers;
+      
+      const getWorldToLocal = (l: Layer, worldX: number, worldY: number): [number, number] => {
+        const resolved = resolveOverlayWorldTransform(l, layers, frame, animations);
+        const dx = worldX - resolved.position[0];
+        const dy = worldY - resolved.position[1];
+        const rot = (resolved.rotation * Math.PI) / 180;
+        const sx = resolved.scale[0] / 100;
+        const sy = resolved.scale[1] / 100;
+        const cos = Math.cos(-rot);
+        const sin = Math.sin(-rot);
+        const rx = dx * cos - dy * sin;
+        const ry = dx * sin + dy * cos;
+        const lx = sx !== 0 ? rx / sx : 0;
+        const ly = sy !== 0 ? ry / sy : 0;
+        return [lx + resolved.anchorPoint[0], ly + resolved.anchorPoint[1]];
+      };
 
       const [lx, ly] = getWorldToLocal(layer, compX, compY);
 
@@ -483,7 +549,7 @@ export function usePenTool({ scale, containerRef, getWorldToLocal, resolveOverla
       window.removeEventListener('mousemove', handleMove);
       window.removeEventListener('mouseup', handleUp);
     };
-  }, [activeTool, pointDrag, scale, getWorldToLocal, containerRef]);
+  }, [activeTool, pointDrag, scale, containerRef]);
 
   // ペンツールのキャンセル (Escape)
   useEffect(() => {
