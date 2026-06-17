@@ -51,6 +51,7 @@ export function Preview({ onRenderReady }: PreviewProps) {
   const setViewportZoom = useUIStore((s) => s.setViewportZoom);
   const activeTool = useUIStore((s) => s.activeTool);
   const activeShapeType = useUIStore((s) => s.activeShapeType);
+  const isPlaying = useTimelineStore((s) => s.isPlaying);
   const currentFrame = useTimelineStore((s) => s.currentFrame);
   const ui = useUIStore();
   const contextMenu = useContextMenu();
