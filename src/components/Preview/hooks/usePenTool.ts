@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback, RefObject, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import type { RefObject } from 'react';
 import { useLayerStore } from '../../../stores/layerStore';
 import { useTimelineStore } from '../../../stores/timelineStore';
 import { useUIStore } from '../../../stores/uiStore';

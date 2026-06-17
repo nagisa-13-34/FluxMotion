@@ -7,7 +7,6 @@ import { Renderer } from '../../stores/engine/renderer';
 import { WebGPURenderer, isWebGPUSupported } from '../../stores/engine/webgpuRenderer';
 import { resolveOverlayWorldTransform } from '../../stores/engine/overlayTransform';
 import type { Layer, BezierPoint } from '../../types/layer';
-import { generateId, createDefaultTransform } from '../../types/layer';
 import { usePenTool } from './hooks/usePenTool';
 
 // #region agent log
@@ -51,14 +50,17 @@ export function Preview({ onRenderReady }: PreviewProps) {
   const setViewportZoom = useUIStore((s) => s.setViewportZoom);
   const activeTool = useUIStore((s) => s.activeTool);
   const activeShapeType = useUIStore((s) => s.activeShapeType);
-  const setTool = useUIStore((s) => s.setTool);
   const isPlaying = useTimelineStore((s) => s.isPlaying);
   const currentFrame = useTimelineStore((s) => s.currentFrame);
+  const ui = useUIStore();
 
   // テキスト編集のインライン状態
   const [editingLayerId, setEditingLayerId] = useState<string | null>(null);
   const [editText, setEditText] = useState('');
   const textInputRef = useRef<HTMLTextAreaElement>(null);
+
+  // スナップライン表示
+  const [snapLines, setSnapLines] = useState<{ axis: 'x' | 'y'; pos: number }[]>([]);
 
   // レンダラーモード
   const [rendererMode, setRendererMode] = useState<'canvas2d' | 'webgpu'>('canvas2d');
@@ -294,8 +296,6 @@ export function Preview({ onRenderReady }: PreviewProps) {
     window.addEventListener('mouseup', handleUp);
   }, [activeTool, scale]);
 
-  // テキスト編集用のダブルクリックハンドラ (抜粋)
-
   // ── テキスト編集 ──
   const startTextEdit = (layer: Layer) => {
     if (layer.type !== 'text' || !layer.textStyle) return;
@@ -446,7 +446,36 @@ export function Preview({ onRenderReady }: PreviewProps) {
           />
 
           {/* グリッドオーバーレイ */}
-          {/* ... (省略) ... */}
+          {ui.showGrid && (
+            <svg
+              style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none', opacity: 0.2 }}
+              width={canvasWidth} height={canvasHeight}
+            >
+              <defs>
+                <pattern id="grid" width={ui.gridSize * scale} height={ui.gridSize * scale} patternUnits="userSpaceOnUse">
+                  <path d={`M ${ui.gridSize * scale} 0 L 0 0 0 ${ui.gridSize * scale}`} fill="none" stroke="#fff" strokeWidth="0.5" />
+                </pattern>
+              </defs>
+              <rect width="100%" height="100%" fill="url(#grid)" />
+            </svg>
+          )}
+
+          {/* スナップライン */}
+          {snapLines.length > 0 && (
+            <svg
+              style={{
+                position: 'absolute', top: 0, left: 0, pointerEvents: 'none', zIndex: 10000
+              }}
+              width={canvasWidth} height={canvasHeight}
+              viewBox={`0 0 ${settings.width} ${settings.height}`}
+            >
+              {snapLines.map((sl, i) =>
+                sl.axis === 'x'
+                  ? <line key={i} x1={sl.pos} y1="0" x2={sl.pos} y2={settings.height} stroke="#f0f" strokeWidth="1" />
+                  : <line key={i} x1="0" y1={sl.pos} x2={settings.width} y2={sl.pos} stroke="#f0f" strokeWidth="1" />
+              )}
+            </svg>
+          )}
 
           {/* シェイプ描画プレビュー */}
           {shapeDraw && (() => {
@@ -478,7 +507,7 @@ export function Preview({ onRenderReady }: PreviewProps) {
                     />
                   ) : shapeType === 'star' ? (
                     <polygon
-                      points={`0,${h/2} ${w/2},0 ${w},${h/2} ${w/2},${h}`} // 簡易的な星型代用
+                      points={generateStarPoints(w/2, h/2, w/2, w/4, 5)}
                       fill="rgba(162, 155, 254, 0.2)"
                       stroke="#A29BFE"
                       strokeWidth="2"
@@ -502,7 +531,6 @@ export function Preview({ onRenderReady }: PreviewProps) {
           {/* ペンツール時のパス・マスクポイントプレビュー */}
           {activeTool === 'pen' && (() => {
             const store = useLayerStore.getState();
-            // penDraw中ならそのレイヤーのみ、そうでなければ選択中レイヤーを対象にする
             debugPreviewLog('H8', 'pen tool render', {
               penDrawPresent: !!penDraw,
               penDrawLayerId: penDraw?.layerId,
@@ -551,24 +579,20 @@ export function Preview({ onRenderReady }: PreviewProps) {
                         const [ix, iy] = l2s(p.pos[0] + p.in[0], p.pos[1] + p.in[1]);
                         const [ox, oy] = l2s(p.pos[0] + p.out[0], p.pos[1] + p.out[1]);
                         
-                        // pointDrag中なら、ドラッグ対象のポイントかどうかを判定してハイライトしても良いが、ここでは一律描画
                         return (
                           <g key={i}>
-                            {/* インタンジェント */}
                             {(p.in[0] !== 0 || p.in[1] !== 0) && (
                               <>
                                 <line x1={px} y1={py} x2={ix} y2={iy} stroke="#00CEC9" strokeWidth="1" />
                                 <circle cx={ix} cy={iy} r="3" fill="#00CEC9" />
                               </>
                             )}
-                            {/* アウトタンジェント */}
                             {(p.out[0] !== 0 || p.out[1] !== 0) && (
                               <>
                                 <line x1={px} y1={py} x2={ox} y2={oy} stroke="#00CEC9" strokeWidth="1" />
                                 <circle cx={ox} cy={oy} r="3" fill="#00CEC9" />
                               </>
                             )}
-                            {/* アンカーポイント */}
                             <circle cx={px} cy={py} r="4" fill="#fff" stroke="#A29BFE" strokeWidth="2" />
                           </g>
                         );
@@ -627,7 +651,6 @@ export function Preview({ onRenderReady }: PreviewProps) {
             const isSelected = selectedLayerIds.includes(layer.id);
             const isEditing = editingLayerId === layer.id;
 
-            // Nullレイヤー: 枠線+十字ターゲットのみ表示
             const isNullLayer = layer.type === 'null';
 
             return (
@@ -662,7 +685,6 @@ export function Preview({ onRenderReady }: PreviewProps) {
                   const store = useLayerStore.getState();
                   const alreadySelected = store.selectedLayerIds.includes(layer.id);
                   
-                  // 未選択の場合は即座に選択
                   if (!alreadySelected) {
                     store.selectLayer(layer.id, e.ctrlKey || e.metaKey);
                   }
@@ -684,7 +706,6 @@ export function Preview({ onRenderReady }: PreviewProps) {
                     let newX = Math.round((origPos[0] + dx) * 10) / 10;
                     let newY = Math.round((origPos[1] + dy) * 10) / 10;
 
-                    // スナップ（Shiftで無効化）
                     const ui = useUIStore.getState();
                     const snappedLines: { axis: 'x' | 'y'; pos: number }[] = [];
                     if (ui.snapEnabled && !me.shiftKey) {
@@ -693,11 +714,9 @@ export function Preview({ onRenderReady }: PreviewProps) {
                       const cy = settings.height / 2;
                       const grid = ui.gridSize;
 
-                      // コンポ中心スナップ
                       if (Math.abs(newX - cx) < snapThreshold) { newX = cx; snappedLines.push({ axis: 'x', pos: cx }); }
                       if (Math.abs(newY - cy) < snapThreshold) { newY = cy; snappedLines.push({ axis: 'y', pos: cy }); }
 
-                      // グリッドスナップ
                       if (ui.showGrid && snappedLines.length === 0) {
                         const nearGridX = Math.round(newX / grid) * grid;
                         const nearGridY = Math.round(newY / grid) * grid;
@@ -711,12 +730,10 @@ export function Preview({ onRenderReady }: PreviewProps) {
                     const store = useLayerStore.getState();
                     store.updateTransform(layer.id, 'position', newPos);
 
-                    // KFが存在する場合、現在フレームのKF値も更新する
                     const layerAnims = store.animations[layer.id];
                     if (layerAnims) {
                       const frame = useTimelineStore.getState().currentFrame;
                       if (layerAnims['position']?.keyframes.length) {
-                        // 統合position KF
                         const existingKf = layerAnims['position'].keyframes.find(k => k.time === frame);
                         store.addKeyframe(layer.id, 'position', {
                           time: frame,
@@ -725,7 +742,6 @@ export function Preview({ onRenderReady }: PreviewProps) {
                           bezierPoints: existingKf?.bezierPoints,
                         });
                       } else {
-                        // 分割次元 (position.x / position.y)
                         if (layerAnims['position.x']?.keyframes.length) {
                           const existingKf = layerAnims['position.x'].keyframes.find(k => k.time === frame);
                           store.addKeyframe(layer.id, 'position.x', {
@@ -753,8 +769,6 @@ export function Preview({ onRenderReady }: PreviewProps) {
                     setSnapLines([]);
                     window.removeEventListener('mousemove', onMove);
                     window.removeEventListener('mouseup', onUp);
-
-                    // ドラッグしなかった場合、かつ単一選択にしたい場合（Ctrl/Metaなし）
                     if (!moved && alreadySelected && !e.ctrlKey && !e.metaKey) {
                       store.selectLayer(layer.id, false);
                     }
@@ -768,12 +782,9 @@ export function Preview({ onRenderReady }: PreviewProps) {
                   if (!isNullLayer) startTextEdit(layer);
                 }}
               >
-
-                {/* リサイズハンドル（選択中のみ） */}
                 {isSelected && !isEditing && !layer.locked && (() => {
                   const handleSize = 8;
                   const half = handleSize / 2;
-                  // 8方向: tl, t, tr, r, br, b, bl, l
                   const handles: { pos: string; cursor: string; dx: number; dy: number; sx: number; sy: number }[] = [
                     { pos: 'tl', cursor: 'nwse-resize', dx: -half,      dy: -half,      sx: -1, sy: -1 },
                     { pos: 't',  cursor: 'ns-resize',   dx: w/2 - half, dy: -half,      sx:  0, sy: -1 },
@@ -808,7 +819,6 @@ export function Preview({ onRenderReady }: PreviewProps) {
                         const origScale: [number, number] = [...resolved.scale];
                         const origPos: [number, number] = [...resolved.position];
                         let resized = false;
-                        // ドラッグ中のカーソルをbody全体にロック
                         document.body.style.cursor = handle.cursor;
 
                         const onResizeMove = (me: MouseEvent) => {
@@ -820,22 +830,17 @@ export function Preview({ onRenderReady }: PreviewProps) {
                           }
                           if (!resized) return;
 
-                          // スケールベースのリサイズ
                           let scaleFactorX = handle.sx !== 0 ? (pixDX * handle.sx) / (w / 2) : 0;
                           let scaleFactorY = handle.sy !== 0 ? (pixDY * handle.sy) / (h / 2) : 0;
 
-                          // Alt押下で比率維持
                           if (me.altKey) {
                             if (handle.sx !== 0 && handle.sy !== 0) {
-                              // 角ハンドル: 大きい方に統一
                               const unified = Math.abs(scaleFactorX) > Math.abs(scaleFactorY) ? scaleFactorX : scaleFactorY;
                               scaleFactorX = unified;
                               scaleFactorY = unified;
                             } else if (handle.sx !== 0) {
-                              // 横ハンドル: X変化量をYにもコピー
                               scaleFactorY = scaleFactorX;
                             } else {
-                              // 縦ハンドル: Y変化量をXにもコピー
                               scaleFactorX = scaleFactorY;
                             }
                           }
@@ -849,7 +854,6 @@ export function Preview({ onRenderReady }: PreviewProps) {
 
                           const newScale: [number, number] = [newScaleX, newScaleY];
 
-                          // --- ポジションの補正（反対側の端を固定） ---
                           const dScaleX = (newScaleX - origScale[0]) / 100;
                           const dScaleY = (newScaleY - origScale[1]) / 100;
                           
@@ -879,7 +883,6 @@ export function Preview({ onRenderReady }: PreviewProps) {
                           store.updateTransform(layer.id, 'scale', newScale);
                           store.updateTransform(layer.id, 'position', newPos);
 
-                          // KFが存在する場合、現在フレームのKF値も更新する
                           const layerAnims = store.animations[layer.id];
                           if (layerAnims) {
                             const frame = useTimelineStore.getState().currentFrame;
@@ -912,7 +915,6 @@ export function Preview({ onRenderReady }: PreviewProps) {
                               }
                             }
                             
-                            // positionのKF更新
                             if (layerAnims['position']?.keyframes.length) {
                               const existingKf = layerAnims['position'].keyframes.find(k => k.time === frame);
                               store.addKeyframe(layer.id, 'position', {
