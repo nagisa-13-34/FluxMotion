@@ -223,6 +223,10 @@ export function Preview({ onRenderReady }: PreviewProps) {
     return () => { unsubLayers(); unsubTimeline(); };
   }, [render]);
 
+  useEffect(() => {
+    render();
+  }, [localLayerOverrides, render]);
+
   // ズーム（ホイール）
   const handleWheel = (e: React.WheelEvent) => {
     e.preventDefault();
