@@ -246,7 +246,7 @@ export function Timeline() {
       });
 
       // スナップ判定用関数
-      const getSnappedDelta = (targetFrame: number, originalFrame: number) => {
+      const getSnappedDelta = (originalFrame: number) => {
         let bestDelta = frameDelta;
         let minDiff = Infinity;
         for (const target of snapTargets) {
@@ -263,8 +263,8 @@ export function Timeline() {
       if (!layer) return;
 
       if (clipDrag.type === 'move') {
-        const snapDeltaIn = getSnappedDelta(clipDrag.origIn + frameDelta, clipDrag.origIn);
-        const snapDeltaOut = getSnappedDelta(clipDrag.origOut + frameDelta, clipDrag.origOut);
+        const snapDeltaIn = getSnappedDelta(clipDrag.origIn);
+        const snapDeltaOut = getSnappedDelta(clipDrag.origOut);
         // IN点とOUT点のどちらか近い方にスナップする
         const diffIn = Math.abs(snapDeltaIn - frameDelta);
         const diffOut = Math.abs(snapDeltaOut - frameDelta);
@@ -277,11 +277,11 @@ export function Timeline() {
           outPoint: newIn + duration,
         });
       } else if (clipDrag.type === 'trimLeft') {
-        frameDelta = getSnappedDelta(clipDrag.origIn + frameDelta, clipDrag.origIn);
+        frameDelta = getSnappedDelta(clipDrag.origIn);
         const newIn = Math.max(0, Math.min(clipDrag.origIn + frameDelta, clipDrag.origOut - 1));
         layerState.updateLayer(clipDrag.layerId, { inPoint: newIn });
       } else if (clipDrag.type === 'trimRight') {
-        frameDelta = getSnappedDelta(clipDrag.origOut + frameDelta, clipDrag.origOut);
+        frameDelta = getSnappedDelta(clipDrag.origOut);
         const newOut = Math.max(clipDrag.origIn + 1, clipDrag.origOut + frameDelta);
         layerState.updateLayer(clipDrag.layerId, { outPoint: newOut });
       }

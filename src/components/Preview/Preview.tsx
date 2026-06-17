@@ -2,35 +2,13 @@ import { useEffect, useRef, useCallback, useState } from 'react';
 import { useProjectStore } from '../../stores/projectStore';
 import { useLayerStore } from '../../stores/layerStore';
 import { useTimelineStore } from '../../stores/timelineStore';
-import { useUIStore, PANEL_IDS } from '../../stores/uiStore';
+import { useUIStore } from '../../stores/uiStore';
 import { useContextMenu } from '../../hooks/useContextMenu';
 import { Renderer } from '../../stores/engine/renderer';
 import { WebGPURenderer, isWebGPUSupported } from '../../stores/engine/webgpuRenderer';
 import { resolveOverlayWorldTransform } from '../../stores/engine/overlayTransform';
 import type { Layer, BezierPoint } from '../../types/layer';
 import { usePenTool } from './hooks/usePenTool';
-
-// #region agent log
-const debugPreviewLog = (hypothesisId: string, message: string, data: Record<string, unknown> = {}, runId: string = 'post-fix') => {
-  fetch('/__debug_ingest', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Debug-Session-Id': '262bcc',
-    },
-    body: JSON.stringify({
-      sessionId: '262bcc',
-      runId,
-      hypothesisId,
-      location: 'components/Preview/Preview.tsx',
-      message,
-      data,
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {});
-};
-// #endregion
-
 interface PreviewProps {
   onRenderReady: (callback: () => void) => void;
 }
@@ -57,7 +35,8 @@ export function Preview({ onRenderReady }: PreviewProps) {
   const contextMenu = useContextMenu();
 
   // テキスト編集のインライン状態
-  const [editingLayerId, setEditingLayerId] = useState<string | null>(null);
+  const editingLayerId = useUIStore((s) => s.editingLayerId);
+  const setEditingLayerId = useUIStore((s) => s.setEditingLayerId);
   const [editText, setEditText] = useState('');
   const textInputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -75,7 +54,8 @@ export function Preview({ onRenderReady }: PreviewProps) {
   };
 
   // レンダラーモード
-  const [rendererMode, setRendererMode] = useState<'canvas2d' | 'webgpu'>('canvas2d');
+  const rendererMode = useUIStore((s) => s.rendererMode);
+  const setRendererMode = useUIStore((s) => s.setRendererMode);
   const [gpuAvailable, setGpuAvailable] = useState(false);
 
   // シェイプ描画用のstate

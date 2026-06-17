@@ -202,9 +202,17 @@ interface UIState {
   snapEnabled: boolean;
   setSnapEnabled: (v: boolean) => void;
   toggleSnap: () => void;
-  /** グリッドサイズ（px） */
+  /** グリッドサイズ (10x10) */
   gridSize: number;
   setGridSize: (v: number) => void;
+
+  /** テキスト編集中などのレイヤーID */
+  editingLayerId: string | null;
+  setEditingLayerId: (id: string | null) => void;
+
+  /** プレビューのレンダラーモード */
+  rendererMode: 'canvas2d' | 'webgpu';
+  setRendererMode: (mode: 'canvas2d' | 'webgpu') => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -221,6 +229,8 @@ export const useUIStore = create<UIState>((set) => ({
   showGrid: false,
   snapEnabled: true,
   gridSize: 50,
+  editingLayerId: null,
+  rendererMode: 'canvas2d',
 
   setTool: (tool) => set({ activeTool: tool }),
   setActiveShapeType: (type) => set({ activeShapeType: type }),
@@ -252,6 +262,9 @@ export const useUIStore = create<UIState>((set) => ({
   setSnapEnabled: (v) => set({ snapEnabled: v }),
   toggleSnap: () => set((s) => ({ snapEnabled: !s.snapEnabled })),
   setGridSize: (v) => set({ gridSize: Math.max(10, Math.min(200, v)) }),
+  
+  setEditingLayerId: (id) => set({ editingLayerId: id }),
+  setRendererMode: (mode) => set({ rendererMode: mode }),
 
   getFlexModel: () => flexModel,
 
